@@ -11,8 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
-@WebServlet("/Staff")
-public class Staff extends HttpServlet {
+@WebServlet("/AdminViewReservation")
+public class AdminViewReservation extends HttpServlet {
 
     private static final String DB_URL      = "jdbc:mysql://localhost:3306/mydb?useSSL=false&serverTimezone=UTC";
     private static final String DB_USER     = "root";
@@ -23,9 +23,9 @@ public class Staff extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // Session guard
         HttpSession session = request.getSession(false);
-        if (session == null ||
-            (session.getAttribute("staff") == null && session.getAttribute("admin") == null)) {
+        if (session == null || session.getAttribute("admin") == null) {
             response.sendRedirect("login.jsp");
             return;
         }
@@ -44,24 +44,27 @@ public class Staff extends HttpServlet {
                     "DELETE FROM reservations WHERE reservation_no = ?");
                 ps.setString(1, reservationNo);
                 int rows = ps.executeUpdate();
-                ps.close(); conn.close();
+                ps.close();
+                conn.close();
 
                 if (rows > 0) {
                     session.setAttribute("flashOk", "Reservation '" + reservationNo + "' deleted successfully.");
                 } else {
                     session.setAttribute("flashErr", "Reservation not found.");
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
                 session.setAttribute("flashErr", "Delete failed: " + e.getMessage());
             }
 
-            String redirect = "Staff";
+            String redirect = "AdminViewReservation";
             if (search != null && !search.isEmpty()) redirect += "?search=" + search;
             response.sendRedirect(redirect);
             return;
         }
 
+        // ── LOAD PAGE ────────────────────────────────────────
         loadPage(request, response);
     }
 
@@ -71,8 +74,7 @@ public class Staff extends HttpServlet {
             throws ServletException, IOException {
 
         HttpSession session = request.getSession(false);
-        if (session == null ||
-            (session.getAttribute("staff") == null && session.getAttribute("admin") == null)) {
+        if (session == null || session.getAttribute("admin") == null) {
             response.sendRedirect("login.jsp");
             return;
         }
@@ -118,10 +120,11 @@ public class Staff extends HttpServlet {
             if (exists > 0) {
                 session.setAttribute("flashErr", "Reservation No '" + reservationNo + "' already exists.");
                 conn.close();
-                response.sendRedirect("Staff" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
+                response.sendRedirect("AdminViewReservation" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
                 return;
             }
 
+            // Insert
             String sql = "INSERT INTO reservations (reservation_no, guest_name, address, contact, room_type, checkin_date, checkout_date) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setString(1, reservationNo);
@@ -131,10 +134,10 @@ public class Staff extends HttpServlet {
             ps.setString(5, roomType);
             ps.setString(6, checkin);
             ps.setString(7, checkout);
-            int rows = ps.executeUpdate();
+            int rowsInserted = ps.executeUpdate();
             ps.close(); conn.close();
 
-            if (rows > 0) {
+            if (rowsInserted > 0) {
                 session.setAttribute("flashOk", "Reservation '" + reservationNo + "' added successfully.");
             } else {
                 session.setAttribute("flashErr", "Failed to add reservation.");
@@ -145,7 +148,7 @@ public class Staff extends HttpServlet {
             session.setAttribute("flashErr", "Database Error: " + e.getMessage());
         }
 
-        response.sendRedirect("Staff" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
+        response.sendRedirect("AdminViewReservation" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
     }
 
     // ── EDIT ──────────────────────────────────────────────────
@@ -175,10 +178,10 @@ public class Staff extends HttpServlet {
             ps.setString(5, checkin);
             ps.setString(6, checkout);
             ps.setString(7, reservationNo);
-            int rows = ps.executeUpdate();
+            int rowsUpdated = ps.executeUpdate();
             ps.close(); conn.close();
 
-            if (rows > 0) {
+            if (rowsUpdated > 0) {
                 session.setAttribute("flashOk", "Reservation '" + reservationNo + "' updated successfully.");
             } else {
                 session.setAttribute("flashErr", "Failed to update reservation.");
@@ -189,7 +192,7 @@ public class Staff extends HttpServlet {
             session.setAttribute("flashErr", "Database Error: " + e.getMessage());
         }
 
-        response.sendRedirect("Staff" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
+        response.sendRedirect("AdminViewReservation" + (search != null && !search.isEmpty() ? "?search=" + search : ""));
     }
 
     // ── LOAD PAGE ─────────────────────────────────────────────
@@ -198,54 +201,47 @@ public class Staff extends HttpServlet {
 
         HttpSession session = request.getSession(false);
         String search = request.getParameter("search");
-
-        String staffName = session.getAttribute("staff") != null
-            ? (String) session.getAttribute("staff")
-            : (String) session.getAttribute("admin");
-
         List<String[]> reservations = new ArrayList<>();
-        int totalRes = 0, todayRes = 0;
+        int totalCount = 0;
         String dbErr = "";
 
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
 
+            // Total count
             PreparedStatement ps1 = conn.prepareStatement("SELECT COUNT(*) FROM reservations");
             ResultSet rs1 = ps1.executeQuery();
-            if (rs1.next()) totalRes = rs1.getInt(1);
+            if (rs1.next()) totalCount = rs1.getInt(1);
             rs1.close(); ps1.close();
 
-            PreparedStatement ps2 = conn.prepareStatement(
-                "SELECT COUNT(*) FROM reservations WHERE checkin_date = CURDATE()");
-            ResultSet rs2 = ps2.executeQuery();
-            if (rs2.next()) todayRes = rs2.getInt(1);
-            rs2.close(); ps2.close();
-
-            PreparedStatement ps3;
+            // Fetch list — all or filtered
+            PreparedStatement ps2;
             if (search != null && !search.trim().isEmpty()) {
-                ps3 = conn.prepareStatement(
+                ps2 = conn.prepareStatement(
                     "SELECT * FROM reservations WHERE reservation_no LIKE ? OR guest_name LIKE ? OR contact LIKE ? ORDER BY checkin_date DESC");
                 String k = "%" + search.trim() + "%";
-                ps3.setString(1, k); ps3.setString(2, k); ps3.setString(3, k);
+                ps2.setString(1, k);
+                ps2.setString(2, k);
+                ps2.setString(3, k);
             } else {
-                ps3 = conn.prepareStatement(
+                ps2 = conn.prepareStatement(
                     "SELECT * FROM reservations ORDER BY checkin_date DESC");
             }
 
-            ResultSet rs3 = ps3.executeQuery();
-            while (rs3.next()) {
+            ResultSet rs2 = ps2.executeQuery();
+            while (rs2.next()) {
                 reservations.add(new String[]{
-                    rs3.getString("reservation_no"),              // [0]
-                    rs3.getString("guest_name"),                  // [1]
-                    rs3.getString("address"),                     // [2]
-                    rs3.getString("contact"),                     // [3]
-                    rs3.getString("room_type"),                   // [4]
-                    String.valueOf(rs3.getDate("checkin_date")),  // [5]
-                    String.valueOf(rs3.getDate("checkout_date"))  // [6]
+                    rs2.getString("reservation_no"),   // [0]
+                    rs2.getString("guest_name"),        // [1]
+                    rs2.getString("address"),           // [2]
+                    rs2.getString("contact"),           // [3]
+                    rs2.getString("room_type"),         // [4]
+                    String.valueOf(rs2.getDate("checkin_date")),   // [5]
+                    String.valueOf(rs2.getDate("checkout_date"))   // [6]
                 });
             }
-            rs3.close(); ps3.close();
+            rs2.close(); ps2.close();
             conn.close();
 
         } catch (Exception e) {
@@ -253,7 +249,7 @@ public class Staff extends HttpServlet {
             dbErr = e.getMessage();
         }
 
-        // Flash messages
+        // Flash messages from session
         request.setAttribute("flashOk",  session.getAttribute("flashOk"));
         request.setAttribute("flashErr", dbErr.isEmpty()
             ? session.getAttribute("flashErr")
@@ -261,12 +257,12 @@ public class Staff extends HttpServlet {
         session.removeAttribute("flashOk");
         session.removeAttribute("flashErr");
 
-        request.setAttribute("staffName",    staffName);
+        // Pass data to JSP
         request.setAttribute("reservations", reservations);
-        request.setAttribute("totalRes",     totalRes);
-        request.setAttribute("todayRes",     todayRes);
+        request.setAttribute("totalCount",   totalCount);
         request.setAttribute("search",       search != null ? search : "");
+        request.setAttribute("adminName",    session.getAttribute("admin"));
 
-        request.getRequestDispatcher("staff.jsp").forward(request, response);
+        request.getRequestDispatcher("adminViewReservation.jsp").forward(request, response);
     }
 }

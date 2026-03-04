@@ -1,705 +1,512 @@
-<%-- 
-    Document   : calculateBill.jsp
-    Author     : Ocean View Resort
-    For        : Guest / User usage
---%>
 <%@ page contentType="text/html;charset=UTF-8" %>
+<%@ page import="jakarta.servlet.http.HttpSession" %>
+<%
+    HttpSession sess = request.getSession(false);
+    String adminName = sess != null ? (String) sess.getAttribute("admin") : null;
+    String staffName = sess != null ? (String) sess.getAttribute("staff") : null;
+
+    if (adminName == null && staffName == null) {
+        response.sendRedirect("login.jsp");
+        return;
+    }
+
+    String currentUser = adminName != null ? adminName : staffName;
+    String userRole    = adminName != null ? "Administrator" : "Staff Member";
+    String themeColor  = adminName != null ? "gold" : "teal";
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean View Resort | Calculate Your Bill</title>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Bill Calculator — Ocean View Resort</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#080c14;--sidebar:#050810;--card:#0e1521;--card2:#111926;--card3:#0a1018;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --gold:#c9a96e;--gl:#e8c98a;--gd:#a07840;
+  --teal:#38bdf8;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--purple:#a78bfa;
+  --text:#eef2f7;--dim:rgba(238,242,247,.55);--dim2:rgba(238,242,247,.28);
+  --sw:240px;--r:16px;--rs:10px;
+  --ac: <%= "gold".equals(themeColor) ? "#c9a96e" : "#38bdf8" %>;
+  --al: <%= "gold".equals(themeColor) ? "#e8c98a" : "#7dd3fc" %>;
+  --ad: <%= "gold".equals(themeColor) ? "#a07840" : "#0284c7" %>;
+  --ab: <%= "gold".equals(themeColor) ? "rgba(201,169,110,.1)" : "rgba(56,189,248,.1)" %>;
+  --abr:<%= "gold".equals(themeColor) ? "rgba(201,169,110,.2)" : "rgba(56,189,248,.2)" %>;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;}
+a{text-decoration:none;color:inherit;}
+input,select,button{font-family:inherit;}
+table{border-collapse:collapse;width:100%;}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="image"
-          href="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1920&q=80"
-          fetchpriority="high">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"
-          rel="stylesheet">
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:0;width:var(--sw);height:100vh;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.s-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border);}
+.s-logo .icon{font-size:26px;display:block;margin-bottom:6px;}
+.s-logo .title{font-size:13px;font-weight:600;color:var(--ac);}
+.s-logo .sub{font-size:10px;color:var(--dim2);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+.s-nav{flex:1;padding:16px 12px;overflow-y:auto;}
+.s-sec{font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim2);padding:14px 8px 6px;}
+.s-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--dim);transition:all .18s;margin-bottom:2px;}
+.s-item:hover{background:rgba(255,255,255,.05);color:var(--text);}
+.s-item.active{background:var(--ab);color:var(--ac);border:1px solid var(--abr);}
+.s-icon{font-size:16px;width:20px;text-align:center;}
+.s-foot{border-top:1px solid var(--border);padding:16px;}
+.u-card{display:flex;align-items:center;gap:10px;background:var(--ab);border:1px solid var(--abr);border-radius:8px;padding:10px 12px;margin-bottom:10px;}
+.u-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ad));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000;flex-shrink:0;}
+.u-name{font-size:12.5px;font-weight:600;}
+.u-role{font-size:10px;color:var(--ac);font-weight:500;}
+.logout{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);color:var(--red);font-size:12.5px;font-weight:500;transition:all .18s;}
+.logout:hover{background:rgba(239,68,68,.16);}
 
-    <style>
-        :root {
-            --gold: #c9a96e;
-            --gold-light: #e8c98a;
-            --deep-navy: #050d1a;
-            --teal: #0e7490;
-            --glass: rgba(255,255,255,0.055);
-            --glass-border: rgba(255,255,255,0.12);
-            --text-dim: rgba(255,255,255,0.55);
-        }
+/* MAIN */
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;animation:pageIn .4s ease both;}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;}}
+.topbar{position:sticky;top:0;height:60px;background:rgba(8,12,20,.9);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:90;}
+.t-title{font-size:16px;font-weight:700;flex:1;}
+.t-title span{color:var(--ac);}
+.t-pill{display:flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--ab);border:1px solid var(--abr);color:var(--al);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ac);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.content{padding:32px;flex:1;}
 
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html { scroll-behavior:smooth; }
+/* PAGE HEADER */
+.ph{display:flex;align-items:center;gap:14px;margin-bottom:30px;}
+.ph-icon{width:50px;height:50px;border-radius:var(--rs);background:linear-gradient(135deg,var(--ac),var(--ad));display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+.ph h1{font-size:24px;font-weight:800;}
+.ph h1 span{color:var(--ac);}
+.ph p{font-size:13.5px;color:var(--dim);margin-top:3px;}
 
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--deep-navy);
-            color: white;
-            min-height: 100vh;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
+/* GRID */
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;}
 
-        /* ── BACKGROUND ── */
-        .hero-bg {
-            position: fixed; inset: 0; z-index: 0;
-            background: url('https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1920&q=80')
-                        center/cover no-repeat;
-            will-change: transform; transform: translateZ(0); contain: strict;
-        }
-        .hero-bg::before {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(135deg,
-                rgba(5,13,26,0.97) 0%,
-                rgba(5,13,26,0.85) 50%,
-                rgba(5,13,26,0.97) 100%);
-        }
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.card-head{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+.ch-icon{font-size:20px;}
+.ch-text h2{font-size:15px;font-weight:700;}
+.ch-text h2 span{color:var(--ac);}
+.ch-text p{font-size:12px;color:var(--dim);margin-top:2px;}
+.card-body{padding:24px;}
+.divider{height:1px;background:var(--border);margin:16px 0 20px;}
 
-        /* ── WAVES ── */
-        .wave-container {
-            position: fixed; bottom: 0; left: 0;
-            width: 100%; height: 110px; z-index: 1;
-            overflow: hidden; opacity: 0.13;
-        }
-        .wave {
-            position: absolute; bottom: 0; left: -50%;
-            width: 200%; height: 75px;
-            background: linear-gradient(to right, transparent, var(--teal), transparent);
-            border-radius: 50%;
-            animation: wave 9s ease-in-out infinite;
-        }
-        .wave:nth-child(2) {
-            height: 50px; opacity: 0.6;
-            animation: wave 13s ease-in-out infinite reverse;
-            background: linear-gradient(to right, transparent, var(--gold), transparent);
-        }
-        @keyframes wave {
-            0%,100% { transform: translateX(0) translateY(0); }
-            50%      { transform: translateX(8%) translateY(-12px); }
-        }
+/* FORM */
+.fg{margin-bottom:18px;}
+.fg label{display:block;font-size:11.5px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.req{color:var(--red);margin-left:2px;}
+.fc{width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.fc:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ab);}
+.fc::placeholder{color:var(--dim2);}
+select.fc option{background:#0e1521;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 
-        /* ── PARTICLES ── */
-        .particles { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
-        .particle {
-            position: absolute; width: 2px; height: 2px; border-radius: 50%;
-            background: var(--gold-light); opacity: 0;
-            animation: floatUp var(--dur,15s) linear var(--delay,0s) infinite;
-            left: var(--x,50%); bottom: -10px;
-        }
-        @keyframes floatUp {
-            0%   { opacity: 0; transform: translateY(0); }
-            10%  { opacity: 0.4; }
-            90%  { opacity: 0.15; }
-            100% { opacity: 0; transform: translateY(-100vh); }
-        }
+/* Rate preview */
+.rate-prev{display:flex;align-items:center;justify-content:space-between;background:var(--card3);border:1px solid var(--abr);border-radius:var(--rs);padding:10px 14px;margin-top:8px;}
+.rp-lbl{font-size:12px;color:var(--dim);}
+.rp-val{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;color:var(--al);}
 
-        /* ── NAVBAR ── */
-        .navbar {
-            position: fixed; top: 0; width: 100%; z-index: 100;
-            background: rgba(5,13,26,0.88);
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--glass-border);
-            padding: 14px 40px;
-            display: flex; justify-content: space-between; align-items: center;
-            animation: pageIn 0.4s ease both;
-        }
-        .navbar-brand {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 22px; font-weight: 600; letter-spacing: 0.04em;
-            display: flex; align-items: center; gap: 10px;
-        }
-        .wave-icon { display: inline-block; animation: sway 3s ease-in-out infinite; }
-        @keyframes sway { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
-        .nav-gold { color: var(--gold); }
-        .nav-back {
-            display: flex; align-items: center; gap: 8px;
-            background: var(--glass); border: 1px solid var(--glass-border);
-            color: var(--text-dim); padding: 8px 18px;
-            border-radius: 100px; font-size: 13px;
-            text-decoration: none; transition: all 0.3s;
-        }
-        .nav-back:hover { border-color: rgba(201,169,110,0.45); color: var(--gold-light); }
+/* Night box */
+.night-box{display:flex;align-items:center;gap:12px;background:var(--card3);border:1px solid var(--border2);border-radius:var(--rs);padding:12px 16px;margin-top:8px;}
+.nb-n{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--al);}
+.nb-l{font-size:12px;color:var(--dim);}
 
-        /* ── PAGE WRAP ── */
-        .page-wrap {
-            position: relative; z-index: 10;
-            min-height: 100vh; padding-top: 72px;
-            display: flex; align-items: center; justify-content: center;
-            padding-bottom: 60px;
-            animation: pageIn 0.5s ease both;
-        }
-        @keyframes pageIn {
-            from { opacity:0; transform: translateY(10px); }
-            to   { opacity:1; transform: translateY(0); }
-        }
+/* Buttons */
+.btn-calc{width:100%;padding:14px;background:linear-gradient(135deg,var(--ac),var(--ad));color:#000;font-size:14px;font-weight:800;border:none;border-radius:var(--rs);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;}
+.btn-calc:hover{transform:translateY(-2px);box-shadow:0 8px 24px var(--ab);}
+.btn-reset{width:100%;padding:10px;background:rgba(255,255,255,.05);border:1px solid var(--border2);color:var(--dim);font-size:13px;font-weight:600;border-radius:var(--rs);cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-reset:hover{background:rgba(255,255,255,.1);color:var(--text);}
 
-        /* ── MAIN CARD ── */
-        .main-card { width: 100%; max-width: 560px; margin: 40px 20px; }
+/* RATES TABLE */
+.rates-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:24px;}
+.rt-table{width:100%;border-collapse:collapse;}
+.rt-table thead tr{background:var(--ab);border-bottom:1px solid var(--border);}
+.rt-table thead th{padding:11px 16px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ac);text-align:left;}
+.rt-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+.rt-table tbody tr:last-child{border-bottom:none;}
+.rt-table tbody tr:hover{background:rgba(255,255,255,.03);}
+.rt-table tbody td{padding:12px 16px;font-size:13px;}
+.r-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle;}
+.r-rate{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--al);}
 
-        /* ── PAGE HEADER ── */
-        .page-header { text-align: center; margin-bottom: 28px; }
-        .page-eyebrow {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: rgba(201,169,110,0.13);
-            border: 1px solid rgba(201,169,110,0.3);
-            color: var(--gold-light); font-size: 11px;
-            letter-spacing: 0.14em; text-transform: uppercase;
-            padding: 4px 14px; border-radius: 100px; margin-bottom: 14px;
-        }
-        .page-header h2 {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 40px; font-weight: 300; line-height: 1.1; margin-bottom: 8px;
-        }
-        .page-header h2 em { font-style: italic; color: var(--gold-light); }
-        .page-header p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+/* RESULT CARD */
+.result-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:none;}
+.result-card.show{display:block;animation:slideIn .4s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes slideIn{from{opacity:0;transform:translateY(16px) scale(.97);}to{opacity:1;transform:none;}}
 
-        /* ── FORM BOX ── */
-        .form-box {
-            background: rgba(4,11,24,0.90);
-            border: 1px solid rgba(255,255,255,0.13);
-            border-radius: 24px; padding: 38px;
-            backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-            box-shadow: 0 32px 80px rgba(0,0,0,0.7),
-                        0 0 0 1px rgba(201,169,110,0.07);
-        }
+/* Invoice header */
+.inv-top{padding:28px 24px 20px;background:linear-gradient(160deg,rgba(201,169,110,.07) 0%,rgba(0,0,0,0) 100%);border-bottom:1px solid var(--border);text-align:center;position:relative;}
+.inv-resort{font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim2);margin-bottom:6px;}
+.inv-title{font-size:22px;font-weight:800;color:var(--gl);letter-spacing:-.3px;}
+.inv-no{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ac);margin-top:6px;padding:3px 12px;display:inline-block;background:var(--ab);border-radius:20px;border:1px solid var(--abr);}
+.inv-date{position:absolute;top:16px;right:18px;font-size:10px;color:var(--dim2);font-family:'JetBrains Mono',monospace;}
+.inv-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green);margin-top:10px;}
 
-        /* ── FORM FIELDS ── */
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group.full { grid-column: 1/-1; }
+/* Guest info grid */
+.inv-info{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);}
+.ii{padding:13px 20px;border-bottom:1px solid var(--border);}
+.ii:nth-child(odd){border-right:1px solid var(--border);}
+.ii:nth-last-child(-n+2){border-bottom:none;}
+.ii-lbl{font-size:10px;font-weight:700;color:var(--dim2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;}
+.ii-val{font-size:13.5px;font-weight:600;}
 
-        .form-label {
-            font-size: 10px; font-weight: 600;
-            letter-spacing: 0.16em; text-transform: uppercase;
-            color: var(--text-dim);
-        }
+/* Breakdown */
+.bk{padding:20px 24px 0;}
+.bk-head{font-size:11px;font-weight:700;color:var(--dim2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;}
+.bk-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+.bk-row:last-child{border-bottom:none;padding-bottom:0;}
+.bk-l{font-size:13.5px;color:var(--dim);}
+.bk-l strong{color:var(--text);}
+.bk-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;}
+.bk-disc .bk-l,.bk-disc .bk-v{color:var(--green);}
 
-        .form-input, .form-select {
-            padding: 12px 14px;
-            background: rgba(3,9,20,0.80);
-            border: 1px solid rgba(255,255,255,0.14);
-            border-radius: 12px; color: white;
-            font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
-            transition: border-color 0.25s, box-shadow 0.25s;
-        }
-        .form-input:focus, .form-select:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(201,169,110,0.13);
-        }
-        .form-input::placeholder { color: rgba(255,255,255,0.28); }
-        .form-select { appearance: none; cursor: pointer; }
-        .form-select option { background: #0a1628; }
+/* Total */
+.total-bar{margin:20px 24px 0;background:linear-gradient(135deg,var(--ab),rgba(0,0,0,.1));border:1px solid var(--abr);border-radius:var(--rs);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;}
+.tb-l{font-size:13px;font-weight:700;color:var(--ac);}
+.tb-sub{font-size:11px;color:var(--dim2);margin-top:2px;}
+.tb-amt{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:800;color:var(--al);}
 
-        /* Room type card select */
-        .room-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .room-card {
-            position: relative; cursor: pointer;
-        }
-        .room-card input[type="radio"] {
-            position: absolute; opacity: 0; width: 0; height: 0;
-        }
-        .room-card-inner {
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 13px; padding: 13px 14px;
-            background: rgba(3,9,20,0.70);
-            transition: all 0.25s; cursor: pointer;
-            display: flex; flex-direction: column; gap: 4px;
-        }
-        .room-card:hover .room-card-inner {
-            border-color: rgba(201,169,110,0.35);
-            background: rgba(201,169,110,0.06);
-        }
-        .room-card input:checked + .room-card-inner {
-            border-color: var(--gold);
-            background: rgba(201,169,110,0.12);
-            box-shadow: 0 0 0 1px rgba(201,169,110,0.3);
-        }
-        .room-name {
-            font-size: 13px; font-weight: 600; color: white;
-        }
-        .room-price {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 16px; font-weight: 700; color: var(--gold-light);
-        }
-        .room-price span { font-size: 11px; font-weight: 400; color: var(--text-dim); }
-        .room-icon { font-size: 18px; margin-bottom: 2px; }
+/* Invoice actions */
+.inv-actions{padding:20px 24px;display:flex;gap:10px;}
+.btn-pr{flex:1;padding:11px;background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-pr:hover{background:rgba(255,255,255,.12);}
+.btn-nw{flex:1;padding:11px;background:linear-gradient(135deg,var(--ac),var(--ad));color:#000;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-nw:hover{transform:translateY(-1px);}
 
-        /* Nights input with stepper */
-        .nights-wrap { position: relative; }
-        .nights-wrap input { padding-right: 80px; }
-        .night-stepper {
-            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-            display: flex; gap: 4px;
-        }
-        .step-btn {
-            width: 28px; height: 28px; border-radius: 8px;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.15);
-            color: white; font-size: 16px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.2s; line-height: 1;
-        }
-        .step-btn:hover { background: rgba(201,169,110,0.2); border-color: rgba(201,169,110,0.5); }
-
-        /* Section divider */
-        .section-divider {
-            height: 1px; margin: 22px 0;
-            background: linear-gradient(90deg, transparent, rgba(201,169,110,0.3), transparent);
-        }
-        .section-title {
-            font-size: 10px; font-weight: 600; letter-spacing: 0.2em;
-            text-transform: uppercase; color: var(--text-dim);
-            margin-bottom: 14px; display: flex; align-items: center; gap: 10px;
-        }
-        .section-title::after { content:''; flex:1; height:1px; background: rgba(255,255,255,0.07); }
-
-        /* ── BILL RESULT ── */
-        .bill-result {
-            display: none; margin-top: 24px;
-            border: 1px solid rgba(201,169,110,0.3);
-            border-radius: 18px; overflow: hidden;
-            animation: slideUp 0.4s ease both;
-        }
-        @keyframes slideUp {
-            from { opacity:0; transform: translateY(14px); }
-            to   { opacity:1; transform: translateY(0); }
-        }
-        .bill-result.show { display: block; }
-
-        .bill-result-header {
-            background: linear-gradient(135deg, rgba(201,169,110,0.2), rgba(201,169,110,0.07));
-            border-bottom: 1px solid rgba(201,169,110,0.2);
-            padding: 20px 24px;
-            text-align: center;
-        }
-        .bill-resort-name {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 22px; font-weight: 600; letter-spacing: 0.04em; margin-bottom: 3px;
-        }
-        .bill-resort-name span { color: var(--gold); }
-        .bill-tagline {
-            font-size: 11px; letter-spacing: 0.18em;
-            text-transform: uppercase; color: var(--text-dim);
-        }
-
-        .bill-body { padding: 22px 24px; }
-
-        .bill-info-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.055);
-            font-size: 14px;
-        }
-        .bill-info-row:last-child { border-bottom: none; }
-        .bill-info-label { color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
-        .bill-info-value { font-weight: 500; color: white; }
-        .bill-info-value.accent { color: var(--gold-light); font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 600; }
-
-        .bill-subtotal {
-            margin-top: 4px; padding: 14px 0;
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .bill-total-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 16px 20px; margin-top: 14px;
-            background: linear-gradient(135deg, rgba(201,169,110,0.18), rgba(201,169,110,0.06));
-            border: 1px solid rgba(201,169,110,0.35);
-            border-radius: 14px;
-        }
-        .bill-total-label {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 20px; font-weight: 600;
-        }
-        .bill-total-value {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 34px; font-weight: 700; color: var(--gold-light);
-        }
-
-        /* ── BUTTONS ── */
-        .btn-primary {
-            width: 100%; padding: 14px;
-            background: linear-gradient(135deg, #c9a96e, #e8c98a);
-            border: none; border-radius: 13px;
-            color: var(--deep-navy); font-family: 'DM Sans', sans-serif;
-            font-size: 14px; font-weight: 700;
-            letter-spacing: 0.06em; text-transform: uppercase;
-            cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
-            margin-top: 22px;
-        }
-        .btn-primary::before {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(135deg, #e8c98a, #fff3cc);
-            opacity: 0; transition: opacity 0.3s;
-        }
-        .btn-primary span { position: relative; z-index: 1; }
-        .btn-primary:hover::before { opacity: 1; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(201,169,110,0.4); }
-        .btn-primary:active { transform: translateY(0); }
-
-        .btn-secondary {
-            width: 100%; padding: 13px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--glass-border);
-            border-radius: 13px; color: var(--text-dim);
-            font-family: 'DM Sans', sans-serif; font-size: 13px;
-            cursor: pointer; transition: all 0.25s; margin-top: 10px;
-            display: none;
-        }
-        .btn-secondary.show { display: block; }
-        .btn-secondary:hover { background: rgba(255,255,255,0.09); color: white; border-color: rgba(201,169,110,0.3); }
-
-        /* Print styles */
-        @media print {
-            body * { visibility: hidden; }
-            .bill-result, .bill-result * { visibility: visible; }
-            .bill-result {
-                position: fixed; inset: 0;
-                background: white; color: black;
-                border: none; border-radius: 0;
-                padding: 40px; display: block !important;
-            }
-            .bill-resort-name { color: black !important; }
-            .bill-resort-name span { color: #8B6914 !important; }
-            .bill-total-value, .bill-info-value.accent { color: #8B6914 !important; }
-            .bill-info-label { color: #555 !important; }
-            .bill-info-value { color: #111 !important; }
-            .bill-total-row { background: #f9f5ef !important; border-color: #d4b483 !important; }
-            .bill-result-header { background: #f4ede0 !important; border-color: #d4b483 !important; }
-            .btn-secondary { display: none !important; }
-        }
-
-        /* Responsive */
-        @media (max-width:580px) {
-            .navbar { padding: 12px 20px; }
-            .form-box { padding: 24px 20px; }
-            .form-grid { grid-template-columns: 1fr; }
-            .room-cards { grid-template-columns: 1fr 1fr; }
-            .page-header h2 { font-size: 30px; }
-        }
-    </style>
+/* PRINT */
+@media print{
+  .sidebar,.topbar,.ph,.input-section,.rates-card,.inv-actions,
+  .btn-calc,.btn-reset{display:none!important;}
+  .main{margin-left:0;}
+  .content{padding:0;}
+  .calc-grid{grid-template-columns:1fr;}
+  .result-card{display:block!important;border:none;border-radius:0;}
+  body{background:#fff;color:#111;}
+  .inv-top{background:linear-gradient(160deg,#f5edd8,#fff);}
+  .inv-title,.inv-resort{color:#8B6914;}
+  .inv-info,.ii,.bk-row{border-color:#e0d5c0;}
+  .ii-lbl,.bk-l{color:#666;}
+  .ii-val,.bk-v,.bk-l strong{color:#111;}
+  .total-bar{background:#f5edd8;border-color:#d4b483;}
+  .tb-l{color:#8B6914;}
+  .tb-amt{color:#111;}
+  .inv-no{background:#f5edd8;border-color:#d4b483;color:#8B6914;}
+  .inv-badge{background:#e8f5e9;border-color:#a5d6a7;color:#2e7d32;}
+}
+@media(max-width:1100px){.calc-grid{grid-template-columns:1fr;}}
+@media(max-width:900px){.sidebar{transform:translateX(-100%);}.main{margin-left:0;}}
+@media(max-width:600px){.content{padding:16px;}.form-row{grid-template-columns:1fr;}.inv-info{grid-template-columns:1fr;}.ii:nth-child(odd){border-right:none;}}
+</style>
 </head>
 <body>
 
-<div class="hero-bg"></div>
-<div class="wave-container"><div class="wave"></div><div class="wave"></div></div>
-<div class="particles" id="particles"></div>
-
-<!-- ── NAVBAR ── -->
-<div class="navbar">
-    <div class="navbar-brand">
-        <span class="wave-icon">🌊</span>
-        Ocean<span class="nav-gold">&nbsp;View</span>&nbsp;Resort
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="s-logo">
+    <span class="icon">🌊</span>
+    <div class="title">Ocean View Resort</div>
+    <div class="sub"><%= adminName != null ? "Admin Portal" : "Staff Portal" %></div>
+  </div>
+  <nav class="s-nav">
+    <div class="s-sec">Main</div>
+    <% if (adminName != null) { %>
+      <a class="s-item" href="AdminDashboard"><div class="s-icon">📊</div> Dashboard</a>
+      <a class="s-item" href="AdminViewReservation"><div class="s-icon">📋</div> Reservations</a>
+      <a class="s-item" href="UserManagement"><div class="s-icon">👥</div> Users &amp; Staff</a>
+    <% } else { %>
+      <a class="s-item" href="Staff"><div class="s-icon">📋</div> Reservations</a>
+    <% } %>
+    <div class="s-sec">Operations</div>
+    <a class="s-item active" href="calculateBill.jsp"><div class="s-icon">🧾</div> Bill Calculator</a>
+  </nav>
+  <div class="s-foot">
+    <div class="u-card">
+      <div class="u-av"><%= String.valueOf(currentUser.charAt(0)).toUpperCase() %></div>
+      <div>
+        <div class="u-name"><%= currentUser %></div>
+        <div class="u-role"><%= userRole %></div>
+      </div>
     </div>
-    <a href="home.jsp" class="nav-back">← Back to Dashboard</a>
-</div>
+    <a class="logout" href="logout">↩ Sign Out</a>
+  </div>
+</aside>
 
-<!-- ── PAGE ── -->
-<div class="page-wrap">
-    <div class="main-card">
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="t-title">Bill <span>Calculator</span></div>
+    <div class="t-pill"><div class="dot"></div> 🧾 Invoice Generator</div>
+  </div>
 
-        <!-- Header -->
-        <div class="page-header">
-            <div class="page-eyebrow">✦ Guest Services</div>
-            <h2>Estimate Your <em>Bill</em></h2>
-            <p>Select your room type and number of nights to get an instant cost breakdown.</p>
+  <div class="content">
+
+    <!-- Header -->
+    <div class="ph">
+      <div class="ph-icon">🧾</div>
+      <div>
+        <h1>Bill <span>Calculator</span></h1>
+        <p>Generate a professional invoice for any guest reservation instantly.</p>
+      </div>
+    </div>
+
+    <div class="calc-grid">
+
+      <!-- ── INPUT SECTION ─────────────────────────── -->
+      <div class="input-section">
+        <div class="card">
+          <div class="card-head">
+            <div class="ch-icon">📝</div>
+            <div class="ch-text">
+              <h2>Reservation <span>Details</span></h2>
+              <p>Fill in guest and booking information</p>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <div class="fg">
+              <label>Reservation No <span class="req">*</span></label>
+              <input class="fc" type="text" id="f_rno" placeholder="e.g. RES-001" autocomplete="off"/>
+            </div>
+            <div class="fg">
+              <label>Guest Name <span class="req">*</span></label>
+              <input class="fc" type="text" id="f_gn" placeholder="Full name"/>
+            </div>
+            <div class="form-row">
+              <div class="fg">
+                <label>Contact</label>
+                <input class="fc" type="text" id="f_ct" placeholder="Phone number"/>
+              </div>
+              <div class="fg">
+                <label>Address</label>
+                <input class="fc" type="text" id="f_ad" placeholder="City / Address"/>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="fg">
+              <label>Room Type <span class="req">*</span></label>
+              <select class="fc" id="f_rt" onchange="updateRatePreview()">
+                <option value="">-- Select Room Type --</option>
+                <option value="Standard">Standard Room</option>
+                <option value="Deluxe">Deluxe Room</option>
+                <option value="Family">Family Room</option>
+                <option value="Ocean View">Ocean View Room</option>
+                <option value="Suite">Suite</option>
+              </select>
+              <div class="rate-prev" id="ratePreview" style="display:none;">
+                <span class="rp-lbl">🏨 Rate per night</span>
+                <span class="rp-val" id="rateDisplay">$0.00</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="fg">
+                <label>Check-In <span class="req">*</span></label>
+                <input class="fc" type="date" id="f_ci" onchange="updateNights()"/>
+              </div>
+              <div class="fg">
+                <label>Check-Out <span class="req">*</span></label>
+                <input class="fc" type="date" id="f_co" onchange="updateNights()"/>
+              </div>
+            </div>
+
+            <div class="night-box" id="nightBox" style="display:none;">
+              <span style="font-size:24px;">🌙</span>
+              <div>
+                <div class="nb-n" id="nightCount">0</div>
+                <div class="nb-l">Night(s) of stay</div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="fg">
+              <label>Discount (%)</label>
+              <input class="fc" type="number" id="f_disc" placeholder="0" min="0" max="100" value="0"/>
+            </div>
+
+            <button class="btn-calc" onclick="calculate()">⚡ Generate Invoice</button>
+            <button class="btn-reset" onclick="resetForm()">🔄 Clear Form</button>
+
+          </div>
         </div>
 
-        <!-- Form Box -->
-        <div class="form-box">
-
-            <!-- ROOM TYPE SELECTION -->
-            <div class="section-title">Choose Room Type</div>
-            <div class="room-cards" id="roomCards">
-
-                <label class="room-card">
-                    <input type="radio" name="roomTypeRadio" value="Standard" data-rate="5000" checked>
-                    <div class="room-card-inner">
-                        <div class="room-icon">🛏️</div>
-                        <div class="room-name">Standard</div>
-                        <div class="room-price">Rs 5,000 <span>/ night</span></div>
-                    </div>
-                </label>
-
-                <label class="room-card">
-                    <input type="radio" name="roomTypeRadio" value="Deluxe" data-rate="8000">
-                    <div class="room-card-inner">
-                        <div class="room-icon">🌟</div>
-                        <div class="room-name">Deluxe</div>
-                        <div class="room-price">Rs 8,000 <span>/ night</span></div>
-                    </div>
-                </label>
-
-                <label class="room-card">
-                    <input type="radio" name="roomTypeRadio" value="Family" data-rate="10000">
-                    <div class="room-card-inner">
-                        <div class="room-icon">👨‍👩‍👧</div>
-                        <div class="room-name">Family</div>
-                        <div class="room-price">Rs 10,000 <span>/ night</span></div>
-                    </div>
-                </label>
-
-                <label class="room-card">
-                    <input type="radio" name="roomTypeRadio" value="Ocean View" data-rate="14000">
-                    <div class="room-card-inner">
-                        <div class="room-icon">🌊</div>
-                        <div class="room-name">Ocean View</div>
-                        <div class="room-price">Rs 14,000 <span>/ night</span></div>
-                    </div>
-                </label>
-
-                <label class="room-card" style="grid-column:1/-1;">
-                    <input type="radio" name="roomTypeRadio" value="Suite" data-rate="18000">
-                    <div class="room-card-inner" style="flex-direction:row; align-items:center; gap:14px;">
-                        <div class="room-icon" style="font-size:22px;">👑</div>
-                        <div>
-                            <div class="room-name">Presidential Suite</div>
-                            <div class="room-price">Rs 18,000 <span>/ night</span></div>
-                        </div>
-                    </div>
-                </label>
-
+        <!-- Rates Table -->
+        <div class="rates-card">
+          <div class="card-head" style="padding:16px 20px;">
+            <div class="ch-icon">💰</div>
+            <div class="ch-text">
+              <h2>Room <span>Rates</span></h2>
+              <p>Standard pricing reference</p>
             </div>
+          </div>
+          <table class="rt-table">
+            <thead><tr><th>Room Type</th><th>Rate/Night</th><th>Tier</th></tr></thead>
+            <tbody>
+              <tr><td><span class="r-dot" style="background:#6b7280;"></span>Standard</td><td><span class="r-rate">$80.00</span></td><td><span style="font-size:11px;color:var(--dim);">Budget</span></td></tr>
+              <tr><td><span class="r-dot" style="background:#38bdf8;"></span>Deluxe</td><td><span class="r-rate">$150.00</span></td><td><span style="font-size:11px;color:#38bdf8;">Popular</span></td></tr>
+              <tr><td><span class="r-dot" style="background:#22c55e;"></span>Family</td><td><span class="r-rate">$180.00</span></td><td><span style="font-size:11px;color:#22c55e;">Family</span></td></tr>
+              <tr><td><span class="r-dot" style="background:#c9a96e;"></span>Ocean View</td><td><span class="r-rate">$220.00</span></td><td><span style="font-size:11px;color:#c9a96e;">Premium</span></td></tr>
+              <tr><td><span class="r-dot" style="background:#a78bfa;"></span>Suite</td><td><span class="r-rate">$250.00</span></td><td><span style="font-size:11px;color:#a78bfa;">Luxury</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-            <div class="section-divider"></div>
+      <!-- ── INVOICE RESULT ─────────────────────────── -->
+      <div class="result-card" id="resultCard">
 
-            <!-- NIGHTS + DATES -->
-            <div class="section-title">Stay Duration</div>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label class="form-label">Check-In Date</label>
-                    <input class="form-input" type="date" id="checkIn"
-                           onchange="syncNights()">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Check-Out Date</label>
-                    <input class="form-input" type="date" id="checkOut"
-                           onchange="syncNights()">
-                </div>
-                <div class="form-group full">
-                    <label class="form-label">Number of Nights</label>
-                    <div class="nights-wrap">
-                        <input class="form-input" type="number" id="nights"
-                               placeholder="e.g. 3" min="1" value="1"
-                               oninput="clearDates()">
-                        <div class="night-stepper">
-                            <button class="step-btn" type="button" onclick="stepNights(-1)">−</button>
-                            <button class="step-btn" type="button" onclick="stepNights(1)">+</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="inv-top">
+          <div class="inv-resort">Ocean View Resort</div>
+          <div class="inv-title">GUEST INVOICE</div>
+          <div class="inv-no" id="r_rno_badge"></div>
+          <div><span class="inv-badge">✅ Invoice Generated</span></div>
+          <div class="inv-date" id="inv_date"></div>
+        </div>
 
-            <div class="section-divider"></div>
+        <div class="inv-info">
+          <div class="ii"><div class="ii-lbl">Guest Name</div><div class="ii-val" id="r_gn"></div></div>
+          <div class="ii"><div class="ii-lbl">Room Type</div><div class="ii-val" id="r_rt"></div></div>
+          <div class="ii"><div class="ii-lbl">Contact</div><div class="ii-val" id="r_ct"></div></div>
+          <div class="ii"><div class="ii-lbl">Address</div><div class="ii-val" id="r_ad"></div></div>
+          <div class="ii"><div class="ii-lbl">Check-In</div><div class="ii-val" id="r_ci" style="font-family:'JetBrains Mono',monospace;"></div></div>
+          <div class="ii"><div class="ii-lbl">Check-Out</div><div class="ii-val" id="r_co" style="font-family:'JetBrains Mono',monospace;"></div></div>
+        </div>
 
-            <!-- GUEST NAME (optional) -->
-            <div class="section-title">Your Name <span style="color:rgba(255,255,255,0.22);font-size:9px;margin-left:4px;">(optional — appears on invoice)</span></div>
-            <div class="form-group full">
-                <input class="form-input" type="text" id="guestName"
-                       placeholder="Enter your full name">
-            </div>
+        <div class="bk">
+          <div class="bk-head">💰 Billing Breakdown</div>
+          <div class="bk-row">
+            <div class="bk-l"><strong id="r_nights_lbl">0 nights</strong> × <span id="r_rate_lbl">$0/night</span></div>
+            <div class="bk-v" id="r_room"></div>
+          </div>
+          <div class="bk-row">
+            <div class="bk-l">Service Charge <span style="font-size:11px;color:var(--dim2);">(10%)</span></div>
+            <div class="bk-v" id="r_svc"></div>
+          </div>
+          <div class="bk-row">
+            <div class="bk-l">Tax <span style="font-size:11px;color:var(--dim2);">(8%)</span></div>
+            <div class="bk-v" id="r_tax"></div>
+          </div>
+          <div class="bk-row bk-disc" id="r_disc_row" style="display:none;">
+            <div class="bk-l">🎁 Discount Applied</div>
+            <div class="bk-v" id="r_disc"></div>
+          </div>
+          <div class="bk-row">
+            <div class="bk-l">Subtotal (before discount)</div>
+            <div class="bk-v" id="r_sub"></div>
+          </div>
+        </div>
 
-            <!-- CALCULATE BUTTON -->
-            <button class="btn-primary" type="button" onclick="calculateBill()">
-                <span>🧾 Calculate My Bill</span>
-            </button>
+        <div class="total-bar">
+          <div>
+            <div class="tb-l">TOTAL AMOUNT DUE</div>
+            <div class="tb-sub">Inclusive of all taxes &amp; charges</div>
+          </div>
+          <div class="tb-amt" id="r_total"></div>
+        </div>
 
-            <!-- ── BILL RESULT ── -->
-            <div class="bill-result" id="billResult">
-                <div class="bill-result-header">
-                    <div class="bill-resort-name">🌊 Ocean <span>View</span> Resort</div>
-                    <div class="bill-tagline">Official Guest Invoice</div>
-                </div>
+        <div class="inv-actions">
+          <button class="btn-pr" onclick="window.print()">🖨️ Print Invoice</button>
+          <button class="btn-nw" onclick="resetForm()">➕ New Calculation</button>
+        </div>
 
-                <div class="bill-body">
+      </div><!-- /result-card -->
 
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">👤 Guest Name</span>
-                        <span class="bill-info-value" id="res_guest">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">🏨 Room Type</span>
-                        <span class="bill-info-value accent" id="res_room">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">💰 Rate Per Night</span>
-                        <span class="bill-info-value" id="res_rate">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">🌙 Number of Nights</span>
-                        <span class="bill-info-value" id="res_nights">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">📅 Check-In</span>
-                        <span class="bill-info-value" id="res_checkin">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">📅 Check-Out</span>
-                        <span class="bill-info-value" id="res_checkout">—</span>
-                    </div>
-
-                    <div class="section-divider" style="margin:14px 0;"></div>
-
-                    <!-- CHARGES BREAKDOWN -->
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">🛏️ Room Charges</span>
-                        <span class="bill-info-value" id="res_roomCharge">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">🧹 Service & Housekeeping <small style="color:rgba(255,255,255,0.3)">(10%)</small></span>
-                        <span class="bill-info-value" id="res_service">—</span>
-                    </div>
-                    <div class="bill-info-row">
-                        <span class="bill-info-label">🏛️ Government Tax <small style="color:rgba(255,255,255,0.3)">(8%)</small></span>
-                        <span class="bill-info-value" id="res_tax">—</span>
-                    </div>
-
-                    <div class="bill-total-row">
-                        <span class="bill-total-label">Total Amount Due</span>
-                        <span class="bill-total-value" id="res_total">Rs 0.00</span>
-                    </div>
-
-                    <p style="text-align:center;font-size:11px;color:rgba(255,255,255,0.3);margin-top:14px;letter-spacing:0.06em;">
-                        Thank you for choosing Ocean View Resort 🌊
-                    </p>
-                </div>
-            </div>
-
-            <!-- PRINT & RECALCULATE BUTTONS -->
-            <button class="btn-secondary" id="btnPrint" onclick="window.print()">
-                🖨️ Print Invoice
-            </button>
-            <button class="btn-secondary" id="btnReset" onclick="resetForm()">
-                ↺ Recalculate
-            </button>
-
-        </div><!-- /form-box -->
-    </div>
+    </div><!-- /calc-grid -->
+  </div>
 </div>
 
 <script>
-    // Particles
-    var pc = document.getElementById("particles");
-    for (var i = 0; i < 14; i++) {
-        var p = document.createElement("div");
-        p.className = "particle";
-        p.style.cssText =
-            "--x:"   + Math.random() * 100 + "%;" +
-            "--dur:"  + (12 + Math.random() * 14)  + "s;" +
-            "--delay:"+ (Math.random() * 12)        + "s";
-        pc.appendChild(p);
-    }
+var RATES={'Standard':80,'Deluxe':150,'Family':180,'Ocean View':220,'Suite':250};
+function fmt(n){ return '$'+n.toFixed(2); }
+function ov(id){ return document.getElementById(id); }
 
-    // Set min date on check-in to today
-    var today = new Date().toISOString().split("T")[0];
-    document.getElementById("checkIn").min  = today;
-    document.getElementById("checkOut").min = today;
+function updateRatePreview(){
+  var rt=ov('f_rt').value;
+  if(rt&&RATES[rt]){ ov('rateDisplay').textContent=fmt(RATES[rt]); ov('ratePreview').style.display='flex'; }
+  else { ov('ratePreview').style.display='none'; }
+}
 
-    // Sync nights from date pickers
-    function syncNights() {
-        var ci = document.getElementById("checkIn").value;
-        var co = document.getElementById("checkOut").value;
-        if (ci && co) {
-            var diff = (new Date(co) - new Date(ci)) / 86400000;
-            if (diff > 0) {
-                document.getElementById("nights").value = Math.round(diff);
-            } else {
-                document.getElementById("checkOut").value = "";
-                alert("Check-out must be after check-in.");
-            }
-        }
-    }
+function updateNights(){
+  var ci=ov('f_ci').value, co=ov('f_co').value;
+  if(ci&&co){
+    var n=Math.round((new Date(co)-new Date(ci))/86400000);
+    if(n>0){ ov('nightCount').textContent=n; ov('nightBox').style.display='flex'; return; }
+  }
+  ov('nightBox').style.display='none';
+}
 
-    // Clear date pickers if nights typed manually
-    function clearDates() {
-        document.getElementById("checkIn").value  = "";
-        document.getElementById("checkOut").value = "";
-    }
+function calculate(){
+  var rno=ov('f_rno').value.trim(), gn=ov('f_gn').value.trim();
+  var ct=ov('f_ct').value.trim(), ad=ov('f_ad').value.trim();
+  var rt=ov('f_rt').value, ci=ov('f_ci').value, co=ov('f_co').value;
+  var disc=parseFloat(ov('f_disc').value)||0;
 
-    // Stepper buttons
-    function stepNights(dir) {
-        var inp = document.getElementById("nights");
-        var val = parseInt(inp.value) || 1;
-        val = Math.max(1, val + dir);
-        inp.value = val;
-        clearDates();
-    }
+  if(!rno){alert('Please enter a Reservation No.');ov('f_rno').focus();return;}
+  if(!gn) {alert('Please enter the Guest Name.');ov('f_gn').focus();return;}
+  if(!rt) {alert('Please select a Room Type.');ov('f_rt').focus();return;}
+  if(!ci) {alert('Please select Check-In date.');ov('f_ci').focus();return;}
+  if(!co) {alert('Please select Check-Out date.');ov('f_co').focus();return;}
 
-    // Format number as Rs
-    function fmt(n) {
-        return "Rs " + n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
+  var nights=Math.round((new Date(co)-new Date(ci))/86400000);
+  if(nights<=0){alert('Check-out must be after check-in.');return;}
+  if(disc<0||disc>100){alert('Discount must be 0–100.');return;}
 
-    // Main calculate
-    function calculateBill() {
-        // Get selected room
-        var selected = document.querySelector('input[name="roomTypeRadio"]:checked');
-        if (!selected) { alert("Please select a room type."); return; }
+  var rate=RATES[rt]||80;
+  var room=rate*nights;
+  var svc=room*0.10;
+  var tax=room*0.08;
+  var sub=room+svc+tax;
+  var discAmt=sub*(disc/100);
+  var total=sub-discAmt;
 
-        var roomType = selected.value;
-        var rate     = parseFloat(selected.getAttribute("data-rate")) || 0;
+  ov('inv_date').textContent=new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+  ov('r_rno_badge').textContent=rno;
+  ov('r_gn').textContent=gn;
+  ov('r_ct').textContent=ct||'—';
+  ov('r_ad').textContent=ad||'—';
+  ov('r_rt').textContent='🏨 '+rt;
+  ov('r_ci').textContent=ci;
+  ov('r_co').textContent=co;
+  ov('r_nights_lbl').textContent=nights+(nights===1?' Night':' Nights');
+  ov('r_rate_lbl').textContent=fmt(rate)+'/night';
+  ov('r_room').textContent=fmt(room);
+  ov('r_svc').textContent=fmt(svc);
+  ov('r_tax').textContent=fmt(tax);
+  ov('r_sub').textContent=fmt(sub);
+  ov('r_total').textContent=fmt(total);
 
-        var nights   = parseInt(document.getElementById("nights").value) || 0;
-        if (nights < 1) { alert("Please enter at least 1 night."); return; }
+  if(disc>0){
+    ov('r_disc').textContent='− '+fmt(discAmt)+' ('+disc+'%)';
+    ov('r_disc_row').style.display='flex';
+  } else {
+    ov('r_disc_row').style.display='none';
+  }
 
-        var guest    = document.getElementById("guestName").value.trim() || "Valued Guest";
-        var checkIn  = document.getElementById("checkIn").value  || "—";
-        var checkOut = document.getElementById("checkOut").value || "—";
+  var card=ov('resultCard');
+  card.classList.remove('show');
+  card.style.display='block';
+  setTimeout(function(){card.classList.add('show');},10);
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+}
 
-        // Calculations
-        var roomCharge = rate * nights;
-        var service    = roomCharge * 0.10;
-        var tax        = roomCharge * 0.08;
-        var total      = roomCharge + service + tax;
+function resetForm(){
+  ['f_rno','f_gn','f_ct','f_ad','f_ci','f_co'].forEach(function(id){ov(id).value='';});
+  ov('f_rt').selectedIndex=0;
+  ov('f_disc').value='0';
+  ov('ratePreview').style.display='none';
+  ov('nightBox').style.display='none';
+  ov('resultCard').style.display='none';
+  ov('resultCard').classList.remove('show');
+  ov('f_rno').focus();
+}
 
-        // Populate result
-        document.getElementById("res_guest").textContent     = guest;
-        document.getElementById("res_room").textContent      = roomType;
-        document.getElementById("res_rate").textContent      = fmt(rate) + " / night";
-        document.getElementById("res_nights").textContent    = nights + (nights === 1 ? " night" : " nights");
-        document.getElementById("res_checkin").textContent   = checkIn  !== "—" ? formatDate(checkIn)  : "—";
-        document.getElementById("res_checkout").textContent  = checkOut !== "—" ? formatDate(checkOut) : "—";
-        document.getElementById("res_roomCharge").textContent = fmt(roomCharge);
-        document.getElementById("res_service").textContent   = fmt(service);
-        document.getElementById("res_tax").textContent       = fmt(tax);
-        document.getElementById("res_total").textContent     = fmt(total);
-
-        // Show result
-        var br = document.getElementById("billResult");
-        br.classList.add("show");
-        document.getElementById("btnPrint").classList.add("show");
-        document.getElementById("btnReset").classList.add("show");
-
-        // Smooth scroll to result
-        setTimeout(function() {
-            br.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }, 100);
-    }
-
-    // Format yyyy-mm-dd → nice label
-    function formatDate(d) {
-        if (!d || d === "—") return "—";
-        var parts = d.split("-");
-        var months = ["Jan","Feb","Mar","Apr","May","Jun",
-                      "Jul","Aug","Sep","Oct","Nov","Dec"];
-        return parts[2] + " " + months[parseInt(parts[1])-1] + " " + parts[0];
-    }
-
-    // Reset
-    function resetForm() {
-        document.getElementById("billResult").classList.remove("show");
-        document.getElementById("btnPrint").classList.remove("show");
-        document.getElementById("btnReset").classList.remove("show");
-        document.getElementById("nights").value    = 1;
-        document.getElementById("checkIn").value   = "";
-        document.getElementById("checkOut").value  = "";
-        document.getElementById("guestName").value = "";
-        var first = document.querySelector('input[name="roomTypeRadio"]');
-        if (first) first.checked = true;
-        window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+ov('f_ci').addEventListener('change',function(){
+  ov('f_co').min=this.value;
+  if(ov('f_co').value&&ov('f_co').value<=this.value) ov('f_co').value='';
+  updateNights();
+});
 </script>
-
 </body>
 </html>

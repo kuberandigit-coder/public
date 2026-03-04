@@ -1,640 +1,459 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="java.sql.*, java.util.*" %>
+<%@ page import="java.util.List, java.util.ArrayList" %>
 <%
-    /* ═══════════════════════════════════════════════════════════
-       DB CONFIG
-    ═══════════════════════════════════════════════════════════ */
-    final String DB_URL  = "jdbc:mysql://localhost:3306/mydb";
-    final String DB_USER = "root";
-    final String DB_PASS = "";
+    // ── All data set by UserManagementServlet.java ────────────
+    // users array: [0]=username  [1]=password  [2]=role
+    List<String[]> users = (List<String[]>) request.getAttribute("users");
+    int    totalAll   = request.getAttribute("totalAll")   != null ? (int) request.getAttribute("totalAll")   : 0;
+    int    totalUsers = request.getAttribute("totalUsers") != null ? (int) request.getAttribute("totalUsers") : 0;
+    int    totalStaff = request.getAttribute("totalStaff") != null ? (int) request.getAttribute("totalStaff") : 0;
+    String search     = (String) request.getAttribute("search");
+    String adminName  = (String) request.getAttribute("adminName");
+    String flashOk    = (String) request.getAttribute("flashOk");
+    String flashErr   = (String) request.getAttribute("flashErr");
 
-    String adminName = (String) session.getAttribute("admin");
-    if (adminName == null) adminName = "Admin";
-
-    String action   = request.getParameter("action");
-    String filter   = request.getParameter("filter");   // all / user / staff
-    String search   = request.getParameter("search");
-    if (action  == null) action  = "";
-    if (filter  == null) filter  = "all";
-    if (search  == null) search  = "";
-
-    String flashSuccess = "";
-    String flashError   = "";
-
-    /* ═══════════════════════════════════════════════════════════
-       HANDLE DELETE  GET ?action=delete&username=xxx
-    ═══════════════════════════════════════════════════════════ */
-    if ("delete".equals(action)) {
-        String delUser = request.getParameter("username");
-        if (delUser != null && !delUser.isEmpty()) {
-            try {
-                Class.forName("com.mysql.cj.jdbc.Driver");
-                Connection c = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
-                PreparedStatement p = c.prepareStatement("DELETE FROM users WHERE username = ?");
-                p.setString(1, delUser);
-                int rows = p.executeUpdate();
-                p.close(); c.close();
-                flashSuccess = rows > 0 ? "User \"" + delUser + "\" deleted successfully." : "User not found.";
-            } catch (Exception ex) { flashError = "Delete failed: " + ex.getMessage(); }
-        }
-        action = "";
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       HANDLE ADD / EDIT  POST
-    ═══════════════════════════════════════════════════════════ */
-    if ("POST".equalsIgnoreCase(request.getMethod())) {
-        String postAction  = request.getParameter("action");
-        String uname       = request.getParameter("username");
-        String pwd         = request.getParameter("password");
-        String role        = request.getParameter("role");
-        String origUname   = request.getParameter("orig_username"); // for edit
-
-        if (uname != null) uname = uname.trim();
-        if (pwd   != null) pwd   = pwd.trim();
-        if (role  != null) role  = role.trim();
-
-        if ("add".equals(postAction)) {
-            if (uname == null || uname.isEmpty() || pwd == null || pwd.isEmpty()) {
-                flashError = "Username and password are required.";
-            } else {
-                try {
-                    Class.forName("com.mysql.cj.jdbc.Driver");
-                    Connection c = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
-                    // check duplicate
-                    PreparedStatement chk = c.prepareStatement("SELECT COUNT(*) FROM users WHERE username=?");
-                    chk.setString(1, uname);
-                    ResultSet cr = chk.executeQuery();
-                    int exists = cr.next() ? cr.getInt(1) : 0;
-                    cr.close(); chk.close();
-                    if (exists > 0) {
-                        flashError = "Username \"" + uname + "\" already exists.";
-                    } else {
-                        PreparedStatement p = c.prepareStatement("INSERT INTO users(username,password,role) VALUES(?,?,?)");
-                        p.setString(1, uname); p.setString(2, pwd); p.setString(3, role != null ? role : "user");
-                        p.executeUpdate(); p.close();
-                        flashSuccess = "Account \"" + uname + "\" (" + role + ") created successfully.";
-                    }
-                    c.close();
-                } catch (Exception ex) { flashError = "Add failed: " + ex.getMessage(); }
-            }
-        } else if ("edit".equals(postAction)) {
-            if (origUname != null && !origUname.isEmpty()) {
-                try {
-                    Class.forName("com.mysql.cj.jdbc.Driver");
-                    Connection c = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
-                    String sql;
-                    PreparedStatement p;
-                    if (pwd != null && !pwd.isEmpty()) {
-                        sql = "UPDATE users SET username=?, password=?, role=? WHERE username=?";
-                        p = c.prepareStatement(sql);
-                        p.setString(1, uname); p.setString(2, pwd);
-                        p.setString(3, role); p.setString(4, origUname);
-                    } else {
-                        sql = "UPDATE users SET username=?, role=? WHERE username=?";
-                        p = c.prepareStatement(sql);
-                        p.setString(1, uname); p.setString(2, role); p.setString(3, origUname);
-                    }
-                    int rows = p.executeUpdate(); p.close(); c.close();
-                    flashSuccess = rows > 0 ? "Account \"" + uname + "\" updated successfully." : "Update failed.";
-                } catch (Exception ex) { flashError = "Edit failed: " + ex.getMessage(); }
-            }
-        }
-        filter = request.getParameter("filter");
-        if (filter == null) filter = "all";
-        search = request.getParameter("search");
-        if (search == null) search = "";
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       FETCH USERS
-    ═══════════════════════════════════════════════════════════ */
-    List<Map<String,String>> users = new ArrayList<>();
-    int totalAll = 0, totalUsers = 0, totalStaff = 0;
-    String dbError = "";
-
-    try {
-        Class.forName("com.mysql.cj.jdbc.Driver");
-        Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
-
-        ResultSet rc;
-        rc = con.prepareStatement("SELECT COUNT(*) FROM users").executeQuery();
-        if (rc.next()) totalAll = rc.getInt(1); rc.close();
-        rc = con.prepareStatement("SELECT COUNT(*) FROM users WHERE role='user'").executeQuery();
-        if (rc.next()) totalUsers = rc.getInt(1); rc.close();
-        rc = con.prepareStatement("SELECT COUNT(*) FROM users WHERE role='staff'").executeQuery();
-        if (rc.next()) totalStaff = rc.getInt(1); rc.close();
-
-        StringBuilder sql = new StringBuilder("SELECT username, password, role FROM users WHERE 1=1 ");
-        if ("user".equals(filter))  sql.append("AND role='user' ");
-        if ("staff".equals(filter)) sql.append("AND role='staff' ");
-        if (!search.trim().isEmpty()) sql.append("AND username LIKE ? ");
-        sql.append("ORDER BY role, username");
-
-        PreparedStatement ps = con.prepareStatement(sql.toString());
-        if (!search.trim().isEmpty()) ps.setString(1, "%" + search.trim() + "%");
-
-        ResultSet rs = ps.executeQuery();
-        while (rs.next()) {
-            Map<String,String> row = new LinkedHashMap<>();
-            row.put("username", nvl(rs.getString("username")));
-            row.put("password", nvl(rs.getString("password")));
-            row.put("role",     nvl(rs.getString("role")));
-            users.add(row);
-        }
-        rs.close(); ps.close(); con.close();
-    } catch (Exception e) {
-        dbError = "DB Error: " + e.getMessage();
-    }
+    if (adminName == null) { response.sendRedirect("login.jsp"); return; }
+    if (search    == null) search = "";
+    if (users     == null) users  = new ArrayList<>();
 %>
-<%! private String nvl(String s){ return s != null ? s : ""; } %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean View Resort | User Management</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1920&q=80" fetchpriority="high">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root{--gold:#c9a96e;--gold-light:#e8c98a;--deep-navy:#050d1a;--teal:#0e7490;--glass:rgba(255,255,255,0.055);--glass-border:rgba(255,255,255,0.10);--text-dim:rgba(255,255,255,0.52);}
-        *{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
-        body{font-family:'DM Sans',sans-serif;background:var(--deep-navy);color:white;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
-        .hero-bg{position:fixed;inset:0;z-index:0;background:url('https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1920&q=80') center/cover no-repeat;}
-        .hero-bg::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,13,26,0.95) 0%,rgba(5,13,26,0.78) 40%,rgba(5,13,26,0.97) 100%);}
-        .wave-container{position:fixed;bottom:0;left:0;width:100%;height:110px;z-index:1;overflow:hidden;opacity:0.13;}
-        .wave{position:absolute;bottom:0;left:-50%;width:200%;height:75px;background:linear-gradient(to right,transparent,var(--teal),transparent);border-radius:50%;animation:wave 9s ease-in-out infinite;}
-        .wave:nth-child(2){height:55px;opacity:0.6;animation:wave 13s ease-in-out infinite reverse;background:linear-gradient(to right,transparent,var(--gold),transparent);}
-        @keyframes wave{0%,100%{transform:translateX(0) translateY(0);}50%{transform:translateX(8%) translateY(-12px);}}
-        .particles{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden;}
-        .particle{position:absolute;width:2px;height:2px;border-radius:50%;background:var(--gold-light);opacity:0;animation:floatUp var(--dur,15s) linear var(--delay,0s) infinite;left:var(--x,50%);bottom:-10px;}
-        @keyframes floatUp{0%{opacity:0;transform:translateY(0);}10%{opacity:0.4;}90%{opacity:0.18;}100%{opacity:0;transform:translateY(-100vh);}}
-        /* NAVBAR */
-        .navbar{position:fixed;top:0;width:100%;z-index:100;background:rgba(5,13,26,0.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);padding:14px 40px;display:flex;justify-content:space-between;align-items:center;}
-        .navbar-brand{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:0.04em;display:flex;align-items:center;gap:10px;}
-        .wave-icon{display:inline-block;animation:sway 3s ease-in-out infinite;}
-        @keyframes sway{0%,100%{transform:rotate(-5deg);}50%{transform:rotate(5deg);}}
-        .nav-gold{color:var(--gold);}
-        .admin-badge{background:linear-gradient(135deg,rgba(201,169,110,0.3),rgba(201,169,110,0.1));border:1px solid rgba(201,169,110,0.45);color:var(--gold-light);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding:4px 10px;border-radius:100px;margin-left:4px;}
-        .navbar-right{display:flex;align-items:center;gap:12px;}
-        .nav-back{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--glass-border);color:var(--text-dim);padding:8px 16px;border-radius:100px;font-size:13px;text-decoration:none;transition:all 0.3s;}
-        .nav-back:hover{border-color:rgba(201,169,110,0.4);color:var(--gold-light);}
-        .user-badge{display:flex;align-items:center;gap:9px;background:var(--glass);border:1px solid var(--glass-border);padding:6px 14px 6px 8px;border-radius:100px;font-size:13px;}
-        .user-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-light));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--deep-navy);}
-        .logout-btn{background:rgba(255,59,48,0.17);border:1px solid rgba(255,59,48,0.38);color:white;padding:8px 16px;border-radius:100px;font-size:13px;text-decoration:none;transition:all 0.3s;}
-        .logout-btn:hover{background:rgba(255,59,48,0.36);color:#ff6b6b;}
-        /* MAIN */
-        .container{position:relative;z-index:10;padding:110px 40px 80px;max-width:1200px;margin:0 auto;animation:pageIn 0.5s ease both;}
-        @keyframes pageIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-        .page-eyebrow{font-size:11px;font-weight:500;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:10px;}
-        .page-eyebrow::before{content:'';width:28px;height:1px;background:var(--gold);}
-        .page-header h2{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;line-height:1.1;margin-bottom:28px;}
-        .page-header h2 em{font-style:italic;color:var(--gold-light);}
-        /* FLASH */
-        .flash{padding:13px 18px;border-radius:12px;font-size:13px;margin-bottom:20px;display:flex;align-items:center;gap:10px;animation:slideDown 0.4s ease;}
-        @keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
-        .flash-s{background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.38);color:#6ee7b7;}
-        .flash-e{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.38);color:#fca5a5;}
-        /* KPI */
-        .kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px;}
-        .kpi-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;padding:18px 22px;position:relative;overflow:hidden;transition:transform 0.3s,border-color 0.3s;}
-        .kpi-card:hover{border-color:rgba(201,169,110,0.28);transform:translateY(-3px);}
-        .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0.5;}
-        .kpi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-        .kpi-icon{font-size:20px;}
-        .kpi-badge{font-size:10px;font-weight:600;letter-spacing:0.08em;padding:3px 8px;border-radius:100px;}
-        .ba{background:rgba(201,169,110,0.2);border:1px solid rgba(201,169,110,0.4);color:var(--gold-light);}
-        .bt{background:rgba(14,116,144,0.2);border:1px solid rgba(14,116,144,0.35);color:#67e8f9;}
-        .bg{background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7;}
-        .kpi-num{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:700;color:var(--gold-light);line-height:1;margin-bottom:3px;}
-        .kpi-label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);}
-        /* TOOLBAR */
-        .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
-        .toolbar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-        .search-wrap{position:relative;}
-        .search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--text-dim);pointer-events:none;}
-        .search-input{padding:10px 14px 10px 40px;background:rgba(3,9,20,0.80);border:1px solid var(--glass-border);border-radius:12px;color:white;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:260px;transition:border-color 0.25s;}
-        .search-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,169,110,0.12);}
-        .search-input::placeholder{color:var(--text-dim);}
-        .filter-tabs{display:flex;gap:6px;}
-        .ftab{padding:8px 16px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.04);color:var(--text-dim);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-decoration:none;transition:all 0.2s;}
-        .ftab:hover,.ftab.active{background:rgba(201,169,110,0.15);border-color:rgba(201,169,110,0.4);color:var(--gold-light);}
-        .btn-add{display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:12px;border:none;background:linear-gradient(135deg,#c9a96e,#e8c98a);color:var(--deep-navy);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.3s;white-space:nowrap;}
-        .btn-add:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(201,169,110,0.4);}
-        /* TABLE */
-        .section-label{font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:var(--text-dim);margin-bottom:14px;display:flex;align-items:center;gap:14px;}
-        .section-label::after{content:'';flex:1;height:1px;background:var(--glass-border);}
-        .table-wrap{background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;overflow:hidden;overflow-x:auto;margin-bottom:24px;}
-        table{width:100%;border-collapse:collapse;min-width:600px;}
-        thead tr{background:rgba(255,255,255,0.04);border-bottom:1px solid var(--glass-border);}
-        th{padding:13px 16px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-dim);white-space:nowrap;}
-        tbody tr{border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s;}
-        tbody tr:last-child{border-bottom:none;}
-        tbody tr:hover{background:rgba(201,169,110,0.055);}
-        td{padding:13px 16px;font-size:13px;vertical-align:middle;}
-        .uname{font-weight:600;color:white;font-size:14px;}
-        .pwd-cell{color:var(--text-dim);font-family:monospace;letter-spacing:0.1em;font-size:13px;}
-        .role-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;}
-        .role-admin{background:rgba(201,169,110,0.2);border:1px solid rgba(201,169,110,0.45);color:var(--gold-light);}
-        .role-staff{background:rgba(14,116,144,0.2);border:1px solid rgba(14,116,144,0.38);color:#67e8f9;}
-        .role-user{background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.32);color:#6ee7b7;}
-        .action-btns{display:flex;gap:6px;}
-        .btn-act{padding:5px 12px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;border:none;transition:all 0.2s;white-space:nowrap;letter-spacing:0.04em;}
-        .btn-edit{background:linear-gradient(135deg,rgba(14,116,144,0.3),rgba(14,116,144,0.1));border:1px solid rgba(14,116,144,0.4);color:#67e8f9;}
-        .btn-edit:hover{background:linear-gradient(135deg,rgba(14,116,144,0.5),rgba(14,116,144,0.2));transform:translateY(-1px);}
-        .btn-del{background:linear-gradient(135deg,rgba(239,68,68,0.25),rgba(239,68,68,0.1));border:1px solid rgba(239,68,68,0.35);color:#fca5a5;}
-        .btn-del:hover{background:linear-gradient(135deg,rgba(239,68,68,0.45),rgba(239,68,68,0.2));transform:translateY(-1px);}
-        .empty-state{text-align:center;padding:55px 20px;color:var(--text-dim);}
-        .empty-icon{font-size:40px;margin-bottom:12px;opacity:0.5;}
-        /* MODALS */
-        .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(5,13,26,0.88);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:20px;}
-        .modal-overlay.open{display:flex;}
-        .modal{background:linear-gradient(145deg,rgba(10,22,40,0.99),rgba(5,13,26,0.99));border:1px solid rgba(201,169,110,0.25);border-radius:24px;padding:38px;width:100%;max-width:480px;box-shadow:0 40px 100px rgba(0,0,0,0.8);position:relative;animation:slideUp 0.3s cubic-bezier(0.25,0.46,0.45,0.94);}
-        @keyframes slideUp{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:translateY(0);}}
-        .modal-close{position:absolute;top:16px;right:18px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);color:var(--text-dim);width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all 0.2s;}
-        .modal-close:hover{background:rgba(255,59,48,0.25);border-color:rgba(255,59,48,0.4);color:#ff6b6b;}
-        .modal-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;margin-bottom:6px;}
-        .modal-title span{color:var(--gold);}
-        .modal-sub{font-size:13px;color:var(--text-dim);margin-bottom:22px;}
-        .modal-divider{height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0.3;margin:0 0 22px;}
-        .form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:15px;}
-        .form-label{font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-dim);}
-        .form-input,.form-select{padding:11px 13px;background:rgba(3,9,20,0.80);border:1px solid var(--glass-border);border-radius:10px;color:white;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.25s,box-shadow 0.25s;}
-        .form-input:focus,.form-select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,169,110,0.12);}
-        .form-input::placeholder{color:var(--text-dim);}
-        .form-select{appearance:none;cursor:pointer;}
-        .form-select option{background:#0a1628;}
-        /* Role visual selector */
-        .role-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
-        .role-card{position:relative;cursor:pointer;}
-        .role-card input[type="radio"]{position:absolute;opacity:0;width:0;height:0;}
-        .role-card-inner{border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:13px 14px;background:rgba(3,9,20,0.70);transition:all 0.25s;display:flex;align-items:center;gap:11px;}
-        .role-card:hover .role-card-inner{border-color:rgba(201,169,110,0.35);background:rgba(201,169,110,0.06);}
-        .role-card input:checked + .role-card-inner{border-color:var(--gold);background:rgba(201,169,110,0.12);box-shadow:0 0 0 1px rgba(201,169,110,0.3);}
-        .role-card-icon{font-size:20px;}
-        .role-card-text .rtitle{font-size:13px;font-weight:600;}
-        .role-card-text .rsub{font-size:11px;color:var(--text-dim);}
-        .modal-actions{display:flex;gap:10px;margin-top:4px;}
-        .btn-save{flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#c9a96e,#e8c98a);color:var(--deep-navy);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;}
-        .btn-save:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(201,169,110,0.4);}
-        .btn-cancel{padding:13px 20px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);color:var(--text-dim);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;}
-        .btn-cancel:hover{background:rgba(255,255,255,0.1);color:white;}
-        /* DELETE MODAL */
-        .del-icon-wrap{width:56px;height:56px;border-radius:16px;background:rgba(239,68,68,0.18);border:1px solid rgba(239,68,68,0.35);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 18px;}
-        .del-text{text-align:center;margin-bottom:24px;}
-        .del-text h3{font-family:'Cormorant Garamond',serif;font-size:24px;margin-bottom:8px;}
-        .del-text p{font-size:13px;color:var(--text-dim);line-height:1.7;}
-        .del-text strong{color:#fca5a5;}
-        .btn-del-confirm{flex:1;padding:13px;border-radius:12px;background:linear-gradient(135deg,rgba(239,68,68,0.6),rgba(220,38,38,0.4));border:1px solid rgba(239,68,68,0.5);color:white;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;}
-        .btn-del-confirm:hover{background:linear-gradient(135deg,rgba(239,68,68,0.8),rgba(220,38,38,0.6));transform:translateY(-2px);}
-        .hint{font-size:11px;color:var(--text-dim);margin-top:6px;}
-        .footer{text-align:center;margin-top:50px;font-size:12px;color:var(--text-dim);letter-spacing:0.08em;}
-        .footer::before{content:'';display:block;width:50px;height:1px;background:var(--gold);margin:0 auto 14px;}
-        @media(max-width:768px){.container{padding:100px 18px 60px;}.navbar{padding:12px 18px;}.kpi-strip{grid-template-columns:1fr 1fr 1fr;}}
-    </style>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>User Management — Ocean View Resort</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#080c14;--sidebar:#050810;--card:#0e1521;--card2:#111926;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --gold:#c9a96e;--gl:#e8c98a;--gold-d:#a07840;
+  --teal:#38bdf8;--green:#22c55e;--red:#ef4444;
+  --text:#eef2f7;--dim:rgba(238,242,247,.55);--dim2:rgba(238,242,247,.28);
+  --sw:240px;--r:14px;--rs:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;}
+a{text-decoration:none;color:inherit;}
+input,select,button{font-family:inherit;}
+table{border-collapse:collapse;width:100%;}
+.sidebar{position:fixed;left:0;top:0;width:var(--sw);height:100vh;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.s-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border);}
+.s-logo .icon{font-size:26px;display:block;margin-bottom:6px;}
+.s-logo .title{font-size:13px;font-weight:600;color:var(--gold);}
+.s-logo .sub{font-size:10px;color:var(--dim2);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+.s-nav{flex:1;padding:16px 12px;overflow-y:auto;}
+.s-sec{font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim2);padding:14px 8px 6px;}
+.s-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rs);font-size:13.5px;font-weight:500;color:var(--dim);transition:all .18s;margin-bottom:2px;}
+.s-item:hover{background:rgba(255,255,255,.05);color:var(--text);}
+.s-item.active{background:rgba(201,169,110,.12);color:var(--gold);}
+.s-icon{font-size:16px;width:20px;text-align:center;}
+.s-badge{margin-left:auto;background:var(--gold);color:#000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
+.s-foot{border-top:1px solid var(--border);padding:16px;}
+.u-card{display:flex;align-items:center;gap:10px;background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.18);border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;}
+.u-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000;flex-shrink:0;}
+.u-name{font-size:12.5px;font-weight:600;}
+.u-role{font-size:10px;color:var(--gold);font-weight:500;}
+.logout{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:var(--rs);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);color:var(--red);font-size:12.5px;font-weight:500;transition:all .18s;}
+.logout:hover{background:rgba(239,68,68,.16);}
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;animation:pageIn .35s ease both;}
+@keyframes pageIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.topbar{position:sticky;top:0;height:60px;background:rgba(8,12,20,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:90;}
+.t-title{font-size:16px;font-weight:700;flex:1;}
+.t-title span{color:var(--gold);}
+.t-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:rgba(201,169,110,.1);border:1px solid rgba(201,169,110,.2);color:var(--gl);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.content{padding:28px 32px;flex:1;}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+.ph h1{font-size:22px;font-weight:700;}
+.ph h1 span{color:var(--gold);}
+.ph p{font-size:13px;color:var(--dim);margin-top:3px;}
+.btn-add{display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--rs);background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .18s;}
+.btn-add:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(201,169,110,.35);}
+.flash{display:flex;align-items:center;gap:10px;padding:13px 18px;border-radius:var(--rs);font-size:13.5px;font-weight:500;margin-bottom:20px;}
+.f-ok {background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#4ade80;}
+.f-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px;transition:all .2s;}
+.kpi:hover{transform:translateY(-3px);border-color:var(--border2);}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.kpi-icon{font-size:24px;}
+.kpi-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.4px;text-transform:uppercase;}
+.kb1{background:rgba(201,169,110,.15);color:var(--gold);}
+.kb2{background:rgba(56,189,248,.15);color:var(--teal);}
+.kb3{background:rgba(34,197,94,.15);color:var(--green);}
+.kpi-num{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1;margin-bottom:4px;}
+.kpi-label{font-size:12px;color:var(--dim);}
+.kn1{color:var(--gl);}
+.kn2{color:var(--teal);}
+.kn3{color:var(--green);}
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.tbl-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;}
+.tbl-head h2{font-size:15px;font-weight:700;}
+.tbl-head h2 span{color:var(--gold);}
+.tbl-head p{font-size:12px;color:var(--dim);margin-top:2px;}
+.srch{display:flex;align-items:center;background:var(--card2);border:1px solid var(--border2);border-radius:var(--rs);overflow:hidden;}
+.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:13px;padding:9px 14px;width:210px;}
+.srch input::placeholder{color:var(--dim2);}
+.srch button{background:linear-gradient(135deg,var(--gold),var(--gold-d));border:none;cursor:pointer;padding:9px 14px;font-size:14px;color:#000;}
+.srch a{display:flex;align-items:center;padding:9px 12px;color:var(--dim);font-size:12px;}
+.srch a:hover{color:var(--red);}
+table thead tr{background:rgba(201,169,110,.06);border-bottom:1px solid var(--border);}
+table thead th{padding:12px 18px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-align:left;}
+table tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+table tbody tr:last-child{border-bottom:none;}
+table tbody tr:hover{background:rgba(255,255,255,.03);}
+table tbody td{padding:14px 18px;font-size:13.5px;}
+.td-num{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);}
+.rb{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.rb-admin{background:rgba(201,169,110,.15);color:var(--gold);border:1px solid rgba(201,169,110,.25);}
+.rb-staff{background:rgba(56,189,248,.15);color:var(--teal);border:1px solid rgba(56,189,248,.25);}
+.rb-user {background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.25);}
+.act-btns{display:flex;gap:6px;}
+.ab{padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:600;border:none;cursor:pointer;transition:all .16s;}
+.ab:hover{transform:translateY(-1px);}
+.ab-edit{background:rgba(56,189,248,.12);color:var(--teal);border:1px solid rgba(56,189,248,.2);}
+.ab-edit:hover{background:rgba(56,189,248,.22);}
+.ab-del{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);}
+.ab-del:hover{background:rgba(239,68,68,.22);}
+.empty{text-align:center;padding:56px 24px;}
+.empty .ei{font-size:48px;margin-bottom:14px;opacity:.4;}
+.empty h3{font-size:16px;color:var(--dim);}
+.empty p{font-size:13px;color:var(--dim2);margin-top:6px;}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:var(--r);padding:28px 32px;width:100%;max-width:460px;position:relative;animation:mu .25s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes mu{from{opacity:0;transform:translateY(20px) scale(.96);}to{opacity:1;transform:none;}}
+.mc{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.07);border:none;color:var(--dim);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.mc:hover{background:rgba(239,68,68,.2);color:var(--red);}
+.m-title{font-size:18px;font-weight:700;margin-bottom:4px;}
+.m-title span{color:var(--gold);}
+.m-sub{font-size:12.5px;color:var(--dim);margin-bottom:20px;}
+.m-div{height:1px;background:var(--border);margin-bottom:20px;}
+.fg{margin-bottom:16px;}
+.fg label{display:block;font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;}
+.fg label .req{color:var(--red);margin-left:2px;}
+.fc{width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:13.5px;padding:10px 14px;outline:none;transition:border-color .18s;}
+.fc:focus{border-color:var(--gold);}
+.fc::placeholder{color:var(--dim2);}
+select.fc option{background:#0e1521;}
+.hint{font-size:11px;color:var(--dim2);margin-top:4px;}
+.role-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;}
+.rc{border:2px solid var(--border2);border-radius:var(--rs);padding:10px 14px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:8px;}
+.rc input{display:none;}
+.rc-icon{font-size:18px;}
+.rc-label{font-size:13px;font-weight:600;}
+.rc.rc-user:has(input:checked){border-color:var(--green);background:rgba(34,197,94,.08);}
+.rc.rc-staff:has(input:checked){border-color:var(--teal);background:rgba(56,189,248,.08);}
+.m-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border);}
+.btn-save{padding:9px 22px;background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(201,169,110,.3);}
+.btn-cancel{padding:9px 18px;background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:var(--rs);color:var(--dim);font-size:13px;font-weight:600;cursor:pointer;}
+.btn-cancel:hover{background:rgba(255,255,255,.1);color:var(--text);}
+.del-info{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:var(--rs);padding:12px 16px;font-size:13px;color:#f87171;margin-bottom:6px;}
+.btn-del{padding:9px 22px;background:linear-gradient(135deg,var(--red),#b91c1c);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;}
+.btn-del:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(239,68,68,.3);}
+@media(max-width:900px){.sidebar{transform:translateX(-100%);}.main{margin-left:0;}.kpis{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.content{padding:16px;}.kpis{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
-<div class="hero-bg"></div>
-<div class="wave-container"><div class="wave"></div><div class="wave"></div></div>
-<div class="particles" id="particles"></div>
 
-<!-- NAVBAR -->
-<div class="navbar">
-    <div class="navbar-brand">
-        <span class="wave-icon">🌊</span>Ocean<span class="nav-gold">&nbsp;View</span>&nbsp;Resort
-        <span class="admin-badge">Admin</span>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="s-logo">
+    <span class="icon">🌊</span>
+    <div class="title">Ocean View Resort</div>
+    <div class="sub">Admin Portal</div>
+  </div>
+  <nav class="s-nav">
+    <div class="s-sec">Main</div>
+    <a class="s-item" href="AdminDashboard"><div class="s-icon">📊</div> Dashboard</a>
+    <a class="s-item" href="AdminViewReservation"><div class="s-icon">📋</div> Reservations</a>
+    <a class="s-item active" href="UserManagement">
+      <div class="s-icon">👥</div> Users &amp; Staff
+      <span class="s-badge"><%= totalAll %></span>
+    </a>
+    <div class="s-sec">Operations</div>
+    <a class="s-item" href="calculateBill.jsp"><div class="s-icon">🧾</div> Bill Calculator</a>
+    <div class="s-sec">System</div>
+    <a class="s-item" href="adminSettings.jsp"><div class="s-icon">⚙️</div> Settings</a>
+  </nav>
+  <div class="s-foot">
+    <div class="u-card">
+      <div class="u-av"><%= String.valueOf(adminName.charAt(0)).toUpperCase() %></div>
+      <div>
+        <div class="u-name"><%= adminName %></div>
+        <div class="u-role">Administrator</div>
+      </div>
     </div>
-    <div class="navbar-right">
-        <a href="admin.jsp" class="nav-back">← Dashboard</a>
-        <div class="user-badge">
-            <div class="user-avatar" id="avatarInit">A</div>
-            <span><%= adminName %></span>
-        </div>
-        <a href="logout" class="logout-btn">↩ Logout</a>
-    </div>
-</div>
+    <a class="logout" href="logout">↩ Sign Out</a>
+  </div>
+</aside>
 
-<div class="container">
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="t-title">User <span>Management</span></div>
+    <div class="t-pill"><div class="dot"></div> ⚙️ Admin Access</div>
+  </div>
 
-    <div class="page-header">
-        <div class="page-eyebrow">Admin Control Panel</div>
-        <h2>Users & <em>Staff</em> Management</h2>
-    </div>
+  <div class="content">
 
-    <!-- FLASH -->
-    <% if (!flashSuccess.isEmpty()) { %>
-    <div class="flash flash-s" id="flashMsg">✅ &nbsp;<%= flashSuccess %></div>
+    <!-- Flash -->
+    <% if (flashOk != null) { %>
+      <div class="flash f-ok" id="flashMsg">✅ <%= flashOk %></div>
     <% } %>
-    <% if (!flashError.isEmpty()) { %>
-    <div class="flash flash-e" id="flashMsg">⚠ &nbsp;<%= flashError %></div>
-    <% } %>
-    <% if (!dbError.isEmpty()) { %>
-    <div class="flash flash-e">🔌 &nbsp;<%= dbError %></div>
+    <% if (flashErr != null) { %>
+      <div class="flash f-err" id="flashMsg">⚠ <%= flashErr %></div>
     <% } %>
 
-    <!-- KPI -->
-    <div class="kpi-strip">
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">👤</span><span class="kpi-badge ba">TOTAL</span></div>
-            <div class="kpi-num"><%= totalAll %></div>
-            <div class="kpi-label">All Accounts</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">🌊</span><span class="kpi-badge bg">GUESTS</span></div>
-            <div class="kpi-num"><%= totalUsers %></div>
-            <div class="kpi-label">Guest Accounts</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">🪪</span><span class="kpi-badge bt">STAFF</span></div>
-            <div class="kpi-num"><%= totalStaff %></div>
-            <div class="kpi-label">Staff Accounts</div>
-        </div>
+    <!-- Header -->
+    <div class="ph">
+      <div>
+        <h1>Users &amp; <span>Staff</span></h1>
+        <p>Manage all accounts — create, edit, or remove users and staff.</p>
+      </div>
+      <button class="btn-add" onclick="openAdd()">➕ Add Account</button>
     </div>
 
-    <!-- TOOLBAR -->
-    <div class="section-label">All Accounts</div>
-    <div class="toolbar">
-        <div class="toolbar-left">
-            <form method="GET" action="adminUserManagement.jsp" style="display:flex;gap:8px;align-items:center;">
-                <input type="hidden" name="filter" value="<%= filter %>">
-                <div class="search-wrap">
-                    <span class="search-icon">🔍</span>
-                    <input class="search-input" type="text" name="search"
-                           placeholder="Search username..." value="<%= search %>">
-                </div>
-                <button type="submit" style="padding:10px 18px;border-radius:12px;border:none;background:linear-gradient(135deg,#c9a96e,#e8c98a);color:var(--deep-navy);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Search</button>
-                <% if (!search.isEmpty()) { %>
-                <a href="adminUserManagement.jsp?filter=<%= filter %>" style="padding:10px 14px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);color:var(--text-dim);font-size:13px;text-decoration:none;">✕</a>
-                <% } %>
-            </form>
-            <div class="filter-tabs">
-                <a href="adminUserManagement.jsp?filter=all&search=<%= search %>" class="ftab <%= "all".equals(filter) ? "active" : "" %>">All</a>
-                <a href="adminUserManagement.jsp?filter=user&search=<%= search %>" class="ftab <%= "user".equals(filter) ? "active" : "" %>">👥 Users</a>
-                <a href="adminUserManagement.jsp?filter=staff&search=<%= search %>" class="ftab <%= "staff".equals(filter) ? "active" : "" %>">🪪 Staff</a>
-            </div>
-        </div>
-        <button class="btn-add" onclick="openAdd()">➕ Add New Account</button>
+    <!-- KPI Cards -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">🗂️</div><span class="kpi-badge kb1">All Accounts</span></div>
+        <div class="kpi-num kn1"><%= totalAll %></div>
+        <div class="kpi-label">Total accounts in system</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">👤</div><span class="kpi-badge kb2">Guests</span></div>
+        <div class="kpi-num kn2"><%= totalUsers %></div>
+        <div class="kpi-label">Registered guest users</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">🪪</div><span class="kpi-badge kb3">Staff</span></div>
+        <div class="kpi-num kn3"><%= totalStaff %></div>
+        <div class="kpi-label">Active staff members</div>
+      </div>
     </div>
 
-    <!-- TABLE -->
-    <div class="table-wrap">
+    <!-- Table -->
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <div>
+          <h2>Account <span>List</span></h2>
+          <p>Showing <%= users.size() %> account(s)
+            <% if (!search.isEmpty()) { %> — matching "<strong><%= search %></strong>"<% } %>
+          </p>
+        </div>
+        <form method="GET" action="UserManagement">
+          <div class="srch">
+            <input type="text" name="search" placeholder="Search by username…"
+                   value="<%= search %>" autocomplete="off"/>
+            <button type="submit">🔍</button>
+            <% if (!search.isEmpty()) { %>
+              <a href="UserManagement">✕</a>
+            <% } %>
+          </div>
+        </form>
+      </div>
+
+      <% if (users.isEmpty()) { %>
+        <div class="empty">
+          <div class="ei">👥</div>
+          <h3>No accounts found</h3>
+          <p><% if (!search.isEmpty()) { %>No match for "<%= search %>".<% } else { %>No accounts yet. Click "Add Account".<% } %></p>
+        </div>
+      <% } else { %>
         <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Username</th>
-                    <th>Password</th>
-                    <th>Role</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            <%
-            if (users.isEmpty()) {
+          <thead>
+            <tr>
+              <th>#</th><th>Username</th><th>Password</th><th>Role</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% int rowNum = 1;
+               for (String[] u : users) {
+                 // ✅ u[0]=username  u[1]=password  u[2]=role
+                 String unameJs = u[0].replace("'", "\\'");
+                 String uroleJs = u[2].replace("'", "\\'");
             %>
-                <tr><td colspan="5">
-                    <div class="empty-state">
-                        <div class="empty-icon">👤</div>
-                        <p>No accounts found<%= !search.isEmpty() ? " matching \"" + search + "\"" : "" %>.</p>
-                    </div>
-                </td></tr>
-            <%
-            } else {
-                int idx = 1;
-                for (Map<String,String> u : users) {
-                    String uname = u.get("username");
-                    String pwd   = u.get("password");
-                    String role  = u.get("role");
-                    String unameJ = uname.replace("\\","\\\\").replace("'","\\'");
-                    String pwdJ   = pwd.replace("\\","\\\\").replace("'","\\'");
-                    String roleJ  = role.replace("\\","\\\\").replace("'","\\'");
-                    String roleCls = "role-user";
-                    String roleEmoji = "👥";
-                    if ("staff".equals(role)) { roleCls = "role-staff"; roleEmoji = "🪪"; }
-                    if ("admin".equals(role)) { roleCls = "role-admin"; roleEmoji = "⚙️"; }
-            %>
-                <tr>
-                    <td style="color:var(--text-dim);font-size:12px;"><%= idx++ %></td>
-                    <td><span class="uname">👤 <%= uname %></span></td>
-                    <td><span class="pwd-cell">••••••••</span> <span style="font-size:11px;color:rgba(255,255,255,0.2);">(hidden)</span></td>
-                    <td><span class="role-badge <%= roleCls %>"><%= roleEmoji %> <%= role %></span></td>
-                    <td>
-                        <div class="action-btns">
-                            <button class="btn-act btn-edit"
-                                onclick="openEdit('<%= unameJ %>','<%= pwdJ %>','<%= roleJ %>')">
-                                ✏️ Edit
-                            </button>
-                            <% if (!"admin".equals(role)) { %>
-                            <button class="btn-act btn-del"
-                                onclick="openDelete('<%= unameJ %>')">
-                                🗑️ Delete
-                            </button>
-                            <% } %>
-                        </div>
-                    </td>
-                </tr>
-            <%  } } %>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="footer">© 2026 Ocean View Resort &nbsp;·&nbsp; Admin Portal &nbsp;·&nbsp; All rights reserved</div>
-</div>
-
-<!-- ════════ ADD MODAL ════════ -->
-<div class="modal-overlay" id="addModal">
-    <div class="modal">
-        <button class="modal-close" onclick="closeAdd()">✕</button>
-        <div class="modal-title">Add <span>New Account</span></div>
-        <div class="modal-sub">Create a new user or staff account</div>
-        <div class="modal-divider"></div>
-
-        <form method="POST" action="adminUserManagement.jsp" id="addForm">
-            <input type="hidden" name="action" value="add">
-            <input type="hidden" name="filter" value="<%= filter %>">
-            <input type="hidden" name="search" value="<%= search %>">
-
-            <div class="form-group">
-                <label class="form-label">Username</label>
-                <input class="form-input" type="text" name="username" id="add_uname"
-                       placeholder="Enter username" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Password</label>
-                <input class="form-input" type="text" name="password" id="add_pwd"
-                       placeholder="Enter password" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Select Role</label>
-                <div class="role-cards">
-                    <label class="role-card">
-                        <input type="radio" name="role" value="user" checked>
-                        <div class="role-card-inner">
-                            <span class="role-card-icon">👥</span>
-                            <div class="role-card-text">
-                                <div class="rtitle">Guest / User</div>
-                                <div class="rsub">Can make reservations</div>
-                            </div>
-                        </div>
-                    </label>
-                    <label class="role-card">
-                        <input type="radio" name="role" value="staff">
-                        <div class="role-card-inner">
-                            <span class="role-card-icon">🪪</span>
-                            <div class="role-card-text">
-                                <div class="rtitle">Staff</div>
-                                <div class="rsub">Resort staff access</div>
-                            </div>
-                        </div>
-                    </label>
+            <tr>
+              <td class="td-num"><%= rowNum++ %></td>
+              <td><strong><%= u[0] %></strong></td>
+              <td style="font-family:'JetBrains Mono',monospace;letter-spacing:3px;color:var(--dim2);">••••••••</td>
+              <td>
+                <% if ("admin".equals(u[2])) { %>
+                  <span class="rb rb-admin">⚙️ Admin</span>
+                <% } else if ("staff".equals(u[2])) { %>
+                  <span class="rb rb-staff">🪪 Staff</span>
+                <% } else { %>
+                  <span class="rb rb-user">👤 User</span>
+                <% } %>
+              </td>
+              <td>
+                <div class="act-btns">
+                  <button class="ab ab-edit"
+                    onclick="openEdit('<%= unameJs %>','<%= uroleJs %>')">✏️ Edit</button>
+                  <% if (!"admin".equals(u[2])) { %>
+                  <button class="ab ab-del"
+                    onclick="openDel('<%= unameJs %>')">🗑️ Delete</button>
+                  <% } %>
                 </div>
-            </div>
-            <div class="modal-actions">
-                <button type="submit" class="btn-save">✅ Create Account</button>
-                <button type="button" class="btn-cancel" onclick="closeAdd()">Cancel</button>
-            </div>
-        </form>
+              </td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      <% } %>
     </div>
+
+  </div>
 </div>
 
-<!-- ════════ EDIT MODAL ════════ -->
-<div class="modal-overlay" id="editModal">
-    <div class="modal">
-        <button class="modal-close" onclick="closeEdit()">✕</button>
-        <div class="modal-title">Edit <span>Account</span></div>
-        <div class="modal-sub" id="editSub">Update account details</div>
-        <div class="modal-divider"></div>
 
-        <form method="POST" action="adminUserManagement.jsp" id="editForm">
-            <input type="hidden" name="action" value="edit">
-            <input type="hidden" name="filter" value="<%= filter %>">
-            <input type="hidden" name="search" value="<%= search %>">
-            <input type="hidden" name="orig_username" id="edit_orig">
-
-            <div class="form-group">
-                <label class="form-label">Username</label>
-                <input class="form-input" type="text" name="username" id="edit_uname" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">New Password <span style="color:rgba(255,255,255,0.3);font-size:10px;">(leave blank to keep current)</span></label>
-                <input class="form-input" type="text" name="password" id="edit_pwd"
-                       placeholder="Leave blank to keep current password">
-                <span class="hint">⚠ Only fill this if you want to change the password</span>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Role</label>
-                <select class="form-select" name="role" id="edit_role" required>
-                    <option value="user">👥 User (Guest)</option>
-                    <option value="staff">🪪 Staff</option>
-                    <option value="admin">⚙️ Admin</option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button type="submit" class="btn-save">💾 Save Changes</button>
-                <button type="button" class="btn-cancel" onclick="closeEdit()">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ════════ DELETE MODAL ════════ -->
-<div class="modal-overlay" id="deleteModal">
-    <div class="modal" style="max-width:420px;">
-        <button class="modal-close" onclick="closeDelete()">✕</button>
-        <div class="del-icon-wrap">🗑️</div>
-        <div class="del-text">
-            <h3>Delete Account?</h3>
-            <p>You are about to permanently delete<br>
-               <strong id="delLabel">—</strong><br>
-               This action <strong>cannot be undone.</strong></p>
+<!-- MODAL — ADD -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <button class="mc" onclick="closeAdd()">✕</button>
+    <div class="m-title">Add <span>Account</span></div>
+    <div class="m-sub">Create a new guest user or staff member.</div>
+    <div class="m-div"></div>
+    <form method="POST" action="UserManagement" onsubmit="return validateAdd()">
+      <input type="hidden" name="action" value="add"/>
+      <input type="hidden" name="search" value="<%= search %>"/>
+      <div class="fg">
+        <label>Username <span class="req">*</span></label>
+        <input class="fc" type="text" name="username" id="add_u" placeholder="e.g. john_doe" required autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label>Password <span class="req">*</span></label>
+        <input class="fc" type="password" name="password" id="add_p" placeholder="Set a password" required/>
+      </div>
+      <div class="fg">
+        <label>Role <span class="req">*</span></label>
+        <div class="role-cards">
+          <label class="rc rc-user">
+            <input type="radio" name="role" value="user" checked/>
+            <span class="rc-icon">👤</span><span class="rc-label">Guest User</span>
+          </label>
+          <label class="rc rc-staff">
+            <input type="radio" name="role" value="staff"/>
+            <span class="rc-icon">🪪</span><span class="rc-label">Staff</span>
+          </label>
         </div>
-        <div class="modal-actions">
-            <button class="btn-del-confirm" onclick="doDelete()">🗑️ Yes, Delete</button>
-            <button type="button" class="btn-cancel" onclick="closeDelete()">Cancel</button>
-        </div>
-    </div>
+      </div>
+      <div class="m-actions">
+        <button type="button" class="btn-cancel" onclick="closeAdd()">Cancel</button>
+        <button type="submit" class="btn-save">✅ Create Account</button>
+      </div>
+    </form>
+  </div>
 </div>
+
+
+<!-- MODAL — EDIT -->
+<div class="overlay" id="editModal">
+  <div class="modal">
+    <button class="mc" onclick="closeEdit()">✕</button>
+    <div class="m-title">Edit <span>Account</span></div>
+    <div class="m-sub">Leave password blank to keep current.</div>
+    <div class="m-div"></div>
+    <form method="POST" action="UserManagement" onsubmit="return validateEdit()">
+      <input type="hidden" name="action"           value="edit"/>
+      <input type="hidden" name="search"           value="<%= search %>"/>
+      <input type="hidden" name="originalUsername" id="edit_orig"/>
+      <div class="fg">
+        <label>Username <span class="req">*</span></label>
+        <input class="fc" type="text" name="username" id="edit_u" required autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label>New Password</label>
+        <input class="fc" type="password" name="password" id="edit_p" placeholder="Leave blank to keep current"/>
+        <div class="hint">🔒 Only fill this to change the password.</div>
+      </div>
+      <div class="fg">
+        <label>Role <span class="req">*</span></label>
+        <select class="fc" name="role" id="edit_r">
+          <option value="user">👤 Guest User</option>
+          <option value="staff">🪪 Staff</option>
+          <option value="admin">⚙️ Admin</option>
+        </select>
+      </div>
+      <div class="m-actions">
+        <button type="button" class="btn-cancel" onclick="closeEdit()">Cancel</button>
+        <button type="submit" class="btn-save">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- MODAL — DELETE -->
+<div class="overlay" id="delModal">
+  <div class="modal" style="max-width:400px;">
+    <button class="mc" onclick="closeDel()">✕</button>
+    <div class="m-title" style="color:var(--red);">🗑️ Delete <span>Account</span></div>
+    <div class="m-sub">This action is permanent and cannot be undone.</div>
+    <div class="m-div"></div>
+    <div class="del-info" id="del_label"></div>
+    <p style="font-size:13px;color:var(--dim);margin-top:10px;">Are you sure you want to permanently delete this account?</p>
+    <div class="m-actions">
+      <button type="button" class="btn-cancel" onclick="closeDel()">Cancel</button>
+      <button type="button" class="btn-del" id="del_confirm">🗑️ Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
-    // Particles
-    var pc = document.getElementById("particles");
-    for (var i = 0; i < 14; i++) {
-        var p = document.createElement("div"); p.className = "particle";
-        p.style.cssText = "--x:"+Math.random()*100+"%;--dur:"+(12+Math.random()*14)+"s;--delay:"+(Math.random()*12)+"s";
-        pc.appendChild(p);
-    }
-    document.getElementById("avatarInit").textContent = "<%= adminName %>".charAt(0).toUpperCase();
+(function(){
+  var fm = document.getElementById('flashMsg');
+  if(!fm) return;
+  setTimeout(function(){ fm.style.transition='opacity .5s'; fm.style.opacity='0'; setTimeout(function(){fm.remove();},500); },4500);
+})();
 
-    // Flash auto dismiss
-    var fm = document.getElementById("flashMsg");
-    if (fm) setTimeout(function(){ fm.style.transition="opacity 0.5s"; fm.style.opacity="0"; setTimeout(function(){ fm.remove(); },500); }, 4500);
+function lock()  { document.body.style.overflow='hidden'; }
+function unlock(){ document.body.style.overflow=''; }
+function ov(id)  { return document.getElementById(id); }
 
-    // Navbar scroll
-    window.addEventListener("scroll", function(){
-        document.querySelector(".navbar").style.background = window.scrollY>40?"rgba(5,13,26,0.99)":"rgba(5,13,26,0.92)";
-    },{passive:true});
+function openAdd(){ ov('add_u').value=''; ov('add_p').value=''; ov('addModal').classList.add('open'); lock(); setTimeout(function(){ov('add_u').focus();},80); }
+function closeAdd(){ ov('addModal').classList.remove('open'); unlock(); }
+function validateAdd(){
+  if(!ov('add_u').value.trim()){ alert('Username is required.'); return false; }
+  if(!ov('add_p').value.trim()){ alert('Password is required.'); return false; }
+  return true;
+}
 
-    // ── ADD MODAL ──
-    function openAdd() {
-        document.getElementById("addModal").classList.add("open");
-        document.body.style.overflow = "hidden";
-    }
-    function closeAdd() {
-        document.getElementById("addModal").classList.remove("open");
-        document.body.style.overflow = "";
-    }
+function openEdit(username, role){
+  ov('edit_orig').value = username;
+  ov('edit_u').value    = username;
+  ov('edit_p').value    = '';
+  var sel = ov('edit_r');
+  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===role){ sel.selectedIndex=i; break; } }
+  ov('editModal').classList.add('open'); lock();
+  setTimeout(function(){ov('edit_u').focus();},80);
+}
+function closeEdit(){ ov('editModal').classList.remove('open'); unlock(); }
+function validateEdit(){ if(!ov('edit_u').value.trim()){ alert('Username cannot be empty.'); return false; } return true; }
 
-    // ── EDIT MODAL ──
-    function openEdit(uname, pwd, role) {
-        document.getElementById("edit_orig").value  = uname;
-        document.getElementById("edit_uname").value = uname;
-        document.getElementById("edit_pwd").value   = "";   // blank for safety
-        document.getElementById("editSub").textContent = "Editing: " + uname;
-        var sel = document.getElementById("edit_role");
-        for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === role) { sel.selectedIndex = i; break; }
-        }
-        document.getElementById("editModal").classList.add("open");
-        document.body.style.overflow = "hidden";
-    }
-    function closeEdit() {
-        document.getElementById("editModal").classList.remove("open");
-        document.body.style.overflow = "";
-    }
+var _du='';
+function openDel(username){
+  _du = username;
+  ov('del_label').textContent = 'Account: ' + username;
+  ov('del_confirm').onclick = function(){
+    window.location.href = 'UserManagement?action=delete&username=' + encodeURIComponent(_du)
+      + '<%= !search.isEmpty() ? "&search=" + search : "" %>';
+  };
+  ov('delModal').classList.add('open'); lock();
+}
+function closeDel(){ ov('delModal').classList.remove('open'); unlock(); }
 
-    // ── DELETE MODAL ──
-    var _delUname = "";
-    function openDelete(uname) {
-        _delUname = uname;
-        document.getElementById("delLabel").textContent = '"' + uname + '"';
-        document.getElementById("deleteModal").classList.add("open");
-        document.body.style.overflow = "hidden";
-    }
-    function closeDelete() {
-        document.getElementById("deleteModal").classList.remove("open");
-        document.body.style.overflow = "";
-    }
-    function doDelete() {
-        window.location.href = "adminUserManagement.jsp?action=delete&username="
-            + encodeURIComponent(_delUname)
-            + "&filter=<%= filter %>&search=<%= search %>";
-    }
-
-    // Overlay click to close
-    ["addModal","editModal","deleteModal"].forEach(function(id){
-        document.getElementById(id).addEventListener("click", function(e){
-            if (e.target === this){ closeAdd(); closeEdit(); closeDelete(); }
-        });
-    });
-    document.addEventListener("keydown", function(e){
-        if (e.key==="Escape"){ closeAdd(); closeEdit(); closeDelete(); }
-    });
-
-    // Auto-open Add modal if coming from dashboard quick action
-    <% if ("showAdd".equals(request.getParameter("action"))) { %>
-    window.addEventListener("load", function(){ openAdd(); });
-    <% } %>
+['addModal','editModal','delModal'].forEach(function(id){
+  ov(id).addEventListener('click',function(e){ if(e.target===this){ this.classList.remove('open'); unlock(); } });
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ ['addModal','editModal','delModal'].forEach(function(id){ ov(id).classList.remove('open'); }); unlock(); }
+});
 </script>
 </body>
 </html>

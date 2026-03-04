@@ -64,11 +64,11 @@ public class login extends HttpServlet {
                             // Redirect based on role stored in DB
                             if (dbRole.equals("admin")) {
                                 session.setAttribute("admin", username.trim());
-                                response.sendRedirect("admin.jsp");
+                                response.sendRedirect("AdminDashboard");
 
                             } else if (dbRole.equals("staff")) {
                                 session.setAttribute("staff", username.trim());
-                                response.sendRedirect("staff.jsp");
+                                response.sendRedirect("Staff");
 
                             } else {
                                 // role = "user" → guest

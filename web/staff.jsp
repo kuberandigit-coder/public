@@ -1,530 +1,597 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="java.sql.*" %>
+<%@ page import="java.util.List, java.util.ArrayList" %>
 <%
-    // ── Session guard ──────────────────────────────────────────
-    String staffName = (String) session.getAttribute("staff");
-    if (staffName == null) {
-        response.sendRedirect("login.jsp");
-        return;
-    }
+    // ── All data set by Staff.java servlet ────────────────────
+    // reservations: [0]=res_no [1]=guest_name [2]=address
+    //               [3]=contact [4]=room_type [5]=checkin [6]=checkout
+    String staffName            = (String) request.getAttribute("staffName");
+    List<String[]> reservations = (List<String[]>) request.getAttribute("reservations");
+    int    totalRes  = request.getAttribute("totalRes")  != null ? (int) request.getAttribute("totalRes")  : 0;
+    int    todayRes  = request.getAttribute("todayRes")  != null ? (int) request.getAttribute("todayRes")  : 0;
+    String search    = (String) request.getAttribute("search");
+    String flashOk   = (String) request.getAttribute("flashOk");
+    String flashErr  = (String) request.getAttribute("flashErr");
 
-    // ── DB config ──────────────────────────────────────────────
-    String DB_URL  = "jdbc:mysql://localhost:3306/mydb";
-    String DB_USER = "root";
-    String DB_PASS = "";
-
-    // ── Search param ───────────────────────────────────────────
-    String searchNo = request.getParameter("search");
-    if (searchNo == null) searchNo = "";
-
-    // ── Data containers ────────────────────────────────────────
-    java.util.List<java.util.Map<String,String>> reservations = new java.util.ArrayList<>();
-    int totalBookings = 0;
-
-    // ── Rate map by room type ──────────────────────────────────
-    java.util.Map<String,Integer> rateMap = new java.util.LinkedHashMap<>();
-    rateMap.put("standard", 80);
-    rateMap.put("deluxe",  150);
-    rateMap.put("suite",   250);
-    rateMap.put("family",  180);
-    rateMap.put("ocean",   220);
-
-    try {
-        Class.forName("com.mysql.cj.jdbc.Driver");
-        Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
-
-        // Total count
-        PreparedStatement stTotal = conn.prepareStatement("SELECT COUNT(*) FROM reservations");
-        ResultSet rsTotal = stTotal.executeQuery();
-        if (rsTotal.next()) totalBookings = rsTotal.getInt(1);
-        rsTotal.close(); stTotal.close();
-
-        // Fetch rows — filtered by reservation_no when search is provided
-        PreparedStatement ps;
-        if (!searchNo.trim().isEmpty()) {
-            ps = conn.prepareStatement(
-                "SELECT reservation_no, guest_name, address, contact, room_type, checkin_date, checkout_date " +
-                "FROM reservations WHERE reservation_no LIKE ? ORDER BY checkin_date DESC"
-            );
-            ps.setString(1, "%" + searchNo.trim() + "%");
-        } else {
-            ps = conn.prepareStatement(
-                "SELECT reservation_no, guest_name, address, contact, room_type, checkin_date, checkout_date " +
-                "FROM reservations ORDER BY checkin_date DESC"
-            );
-        }
-
-        ResultSet rs = ps.executeQuery();
-        while (rs.next()) {
-            java.util.Map<String,String> row = new java.util.LinkedHashMap<>();
-            row.put("reservation_no", rs.getString("reservation_no"));
-            row.put("guest_name",     rs.getString("guest_name"));
-            row.put("address",        rs.getString("address"));
-            row.put("contact",        rs.getString("contact"));
-            row.put("room_type",      rs.getString("room_type"));
-            row.put("checkin_date",   rs.getString("checkin_date"));
-            row.put("checkout_date",  rs.getString("checkout_date"));
-            reservations.add(row);
-        }
-        rs.close(); ps.close(); conn.close();
-
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
+    if (staffName    == null) { response.sendRedirect("login.jsp"); return; }
+    if (search       == null) search = "";
+    if (reservations == null) reservations = new ArrayList<>();
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean View Resort | Staff Dashboard</title>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Staff Dashboard — Ocean View Resort</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#080c14;--sidebar:#050810;--card:#0e1521;--card2:#111926;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --gold:#c9a96e;--gl:#e8c98a;--gold-d:#a07840;
+  --teal:#38bdf8;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;
+  --text:#eef2f7;--dim:rgba(238,242,247,.55);--dim2:rgba(238,242,247,.28);
+  --sw:240px;--r:14px;--rs:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;}
+a{text-decoration:none;color:inherit;}
+input,select,button{font-family:inherit;}
+table{border-collapse:collapse;width:100%;}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80" fetchpriority="high">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:0;width:var(--sw);height:100vh;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.s-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border);}
+.s-logo .icon{font-size:26px;display:block;margin-bottom:6px;}
+.s-logo .title{font-size:13px;font-weight:600;color:var(--teal);}
+.s-logo .sub{font-size:10px;color:var(--dim2);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+.s-nav{flex:1;padding:16px 12px;overflow-y:auto;}
+.s-sec{font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim2);padding:14px 8px 6px;}
+.s-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rs);font-size:13.5px;font-weight:500;color:var(--dim);transition:all .18s;margin-bottom:2px;}
+.s-item:hover{background:rgba(255,255,255,.05);color:var(--text);}
+.s-item.active{background:rgba(56,189,248,.1);color:var(--teal);border:1px solid rgba(56,189,248,.15);}
+.s-icon{font-size:16px;width:20px;text-align:center;}
+.s-badge{margin-left:auto;background:var(--teal);color:#000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
+.s-foot{border-top:1px solid var(--border);padding:16px;}
+.u-card{display:flex;align-items:center;gap:10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.18);border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;}
+.u-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--teal),#0284c7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000;flex-shrink:0;}
+.u-name{font-size:12.5px;font-weight:600;}
+.u-role{font-size:10px;color:var(--teal);font-weight:500;}
+.logout{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:var(--rs);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);color:var(--red);font-size:12.5px;font-weight:500;transition:all .18s;}
+.logout:hover{background:rgba(239,68,68,.16);}
 
-    <style>
-        :root {
-            --gold: #c9a96e; --gold-light: #e8c98a;
-            --deep-navy: #050d1a; --teal: #0e7490; --emerald: #10b981;
-            --glass: rgba(255,255,255,0.06);
-            --glass-border: rgba(255,255,255,0.11);
-            --text-dim: rgba(255,255,255,0.55);
-        }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html { scroll-behavior:smooth; }
-        body {
-            font-family:'DM Sans',sans-serif;
-            background:var(--deep-navy); color:white;
-            min-height:100vh; overflow-x:hidden;
-            -webkit-font-smoothing:antialiased;
-        }
+/* MAIN */
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;animation:pageIn .35s ease both;}
+@keyframes pageIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.topbar{position:sticky;top:0;height:60px;background:rgba(8,12,20,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:90;}
+.t-title{font-size:16px;font-weight:700;flex:1;}
+.t-title span{color:var(--teal);}
+.t-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);color:var(--teal);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.content{padding:28px 32px;flex:1;}
 
-        .hero-bg {
-            position:fixed; inset:0; z-index:0;
-            background:url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80') center/cover no-repeat;
-            will-change:transform; transform:translateZ(0); contain:strict;
-        }
-        .hero-bg::before {
-            content:''; position:absolute; inset:0;
-            background:linear-gradient(180deg,rgba(5,13,26,0.88) 0%,rgba(5,13,26,0.72) 40%,rgba(5,13,26,0.96) 100%);
-        }
+/* PAGE HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+.ph h1{font-size:22px;font-weight:700;}
+.ph h1 span{color:var(--teal);}
+.ph p{font-size:13px;color:var(--dim);margin-top:3px;}
+.btn-add{display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--rs);background:linear-gradient(135deg,var(--teal),#0284c7);color:#000;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .18s;}
+.btn-add:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(56,189,248,.35);}
 
-        .wave-container { position:fixed; bottom:0; left:0; width:100%; height:110px; z-index:1; overflow:hidden; opacity:0.14; }
-        .wave { position:absolute; bottom:0; left:-50%; width:200%; height:75px; background:linear-gradient(to right,transparent,var(--teal),transparent); border-radius:50%; animation:wave 9s ease-in-out infinite; }
-        .wave:nth-child(2) { height:55px; opacity:0.6; animation:wave 13s ease-in-out infinite reverse; background:linear-gradient(to right,transparent,var(--gold),transparent); }
-        @keyframes wave { 0%,100%{transform:translateX(0) translateY(0);} 50%{transform:translateX(8%) translateY(-12px);} }
+/* FLASH */
+.flash{display:flex;align-items:center;gap:10px;padding:13px 18px;border-radius:var(--rs);font-size:13.5px;font-weight:500;margin-bottom:20px;}
+.f-ok {background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#4ade80;}
+.f-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;}
 
-        .particles { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
-        .particle { position:absolute; width:2px; height:2px; border-radius:50%; background:var(--gold-light); opacity:0; animation:floatUp var(--dur,15s) linear var(--delay,0s) infinite; left:var(--x,50%); bottom:-10px; }
-        @keyframes floatUp { 0%{opacity:0;transform:translateY(0);} 10%{opacity:0.4;} 90%{opacity:0.2;} 100%{opacity:0;transform:translateY(-100vh);} }
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px;transition:all .2s;}
+.kpi:hover{transform:translateY(-3px);border-color:var(--border2);}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.kpi-icon{font-size:24px;}
+.kpi-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.4px;text-transform:uppercase;}
+.kb1{background:rgba(56,189,248,.15);color:var(--teal);}
+.kb2{background:rgba(245,158,11,.15);color:var(--amber);}
+.kb3{background:rgba(34,197,94,.15);color:var(--green);}
+.kpi-num{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1;margin-bottom:4px;}
+.kpi-label{font-size:12px;color:var(--dim);}
+.kn1{color:var(--teal);}
+.kn2{color:var(--amber);}
+.kn3{color:var(--green);}
 
-        /* NAVBAR */
-        .navbar { position:fixed; top:0; width:100%; z-index:100; background:rgba(5,13,26,0.92); backdrop-filter:blur(14px); border-bottom:1px solid var(--glass-border); padding:14px 40px; display:flex; justify-content:space-between; align-items:center; animation:pageIn 0.4s ease both; }
-        .navbar h1 { font-family:'Cormorant Garamond',serif; font-size:23px; font-weight:600; letter-spacing:0.04em; display:flex; align-items:center; gap:10px; }
-        .wave-icon { font-size:19px; animation:sway 3s ease-in-out infinite; display:inline-block; }
-        @keyframes sway { 0%,100%{transform:rotate(-5deg);} 50%{transform:rotate(5deg);} }
-        .nav-gold { color:var(--gold); }
-        .staff-badge { background:linear-gradient(135deg,rgba(16,185,129,0.3),rgba(16,185,129,0.1)); border:1px solid rgba(16,185,129,0.5); color:#6ee7b7; font-size:10px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; padding:4px 10px; border-radius:100px; margin-left:4px; }
-        .navbar-right { display:flex; align-items:center; gap:14px; }
-        .user-badge { display:flex; align-items:center; gap:10px; background:var(--glass); border:1px solid var(--glass-border); padding:7px 16px 7px 10px; border-radius:100px; font-size:13px; font-weight:500; }
-        .user-avatar { width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,var(--emerald),var(--teal)); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; text-transform:uppercase; }
-        .logout-btn { background:rgba(255,59,48,0.18); border:1px solid rgba(255,59,48,0.4); color:white; padding:7px 16px; border-radius:100px; font-size:13px; text-decoration:none; transition:all 0.3s; }
-        .logout-btn:hover { background:rgba(255,59,48,0.38); color:#ff6b6b; }
+/* TABLE */
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.tbl-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;}
+.tbl-head h2{font-size:15px;font-weight:700;}
+.tbl-head h2 span{color:var(--teal);}
+.tbl-head p{font-size:12px;color:var(--dim);margin-top:2px;}
+.srch{display:flex;align-items:center;background:var(--card2);border:1px solid var(--border2);border-radius:var(--rs);overflow:hidden;}
+.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:13px;padding:9px 14px;width:220px;}
+.srch input::placeholder{color:var(--dim2);}
+.srch button{background:linear-gradient(135deg,var(--teal),#0284c7);border:none;cursor:pointer;padding:9px 14px;font-size:14px;color:#000;}
+.srch a{display:flex;align-items:center;padding:9px 12px;color:var(--dim);font-size:12px;}
+.srch a:hover{color:var(--red);}
+table thead tr{background:rgba(56,189,248,.06);border-bottom:1px solid var(--border);}
+table thead th{padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-align:left;}
+table tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+table tbody tr:last-child{border-bottom:none;}
+table tbody tr:hover{background:rgba(255,255,255,.03);}
+table tbody td{padding:13px 14px;font-size:13px;}
+.td-rno{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--teal);font-weight:600;}
+.room-chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(56,189,248,.1);color:var(--teal);border:1px solid rgba(56,189,248,.2);}
+.act-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.ab{padding:5px 11px;border-radius:6px;font-size:11.5px;font-weight:600;border:none;cursor:pointer;transition:all .16s;}
+.ab:hover{transform:translateY(-1px);}
+.ab-edit{background:rgba(56,189,248,.12);color:var(--teal);border:1px solid rgba(56,189,248,.2);}
+.ab-edit:hover{background:rgba(56,189,248,.22);}
+.ab-bill{background:rgba(201,169,110,.12);color:var(--gold);border:1px solid rgba(201,169,110,.2);}
+.ab-bill:hover{background:rgba(201,169,110,.22);}
+.ab-del{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);}
+.ab-del:hover{background:rgba(239,68,68,.22);}
+.empty{text-align:center;padding:56px 24px;}
+.empty .ei{font-size:48px;margin-bottom:14px;opacity:.4;}
+.empty h3{font-size:16px;color:var(--dim);}
+.empty p{font-size:13px;color:var(--dim2);margin-top:6px;}
 
-        /* MAIN */
-        .container { position:relative; z-index:10; padding:120px 40px 80px; max-width:1380px; margin:0 auto; animation:pageIn 0.5s ease both; }
-        @keyframes pageIn { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+/* MODALS */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:var(--r);padding:28px 32px;width:100%;max-width:500px;position:relative;animation:mu .25s cubic-bezier(.34,1.56,.64,1) both;max-height:90vh;overflow-y:auto;}
+@keyframes mu{from{opacity:0;transform:translateY(20px) scale(.96);}to{opacity:1;transform:none;}}
+.mc{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.07);border:none;color:var(--dim);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.mc:hover{background:rgba(239,68,68,.2);color:var(--red);}
+.m-title{font-size:18px;font-weight:700;margin-bottom:4px;}
+.m-title span{color:var(--teal);}
+.m-sub{font-size:12.5px;color:var(--dim);margin-bottom:20px;}
+.m-div{height:1px;background:var(--border);margin-bottom:20px;}
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;}
+.fg label .req{color:var(--red);margin-left:2px;}
+.fc{width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:13.5px;padding:9px 13px;outline:none;transition:border-color .18s;}
+.fc:focus{border-color:var(--teal);}
+.fc::placeholder{color:var(--dim2);}
+select.fc option{background:#0e1521;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.m-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;padding-top:16px;border-top:1px solid var(--border);}
+.btn-save{padding:9px 22px;background:linear-gradient(135deg,var(--teal),#0284c7);color:#000;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(56,189,248,.3);}
+.btn-cancel{padding:9px 18px;background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:var(--rs);color:var(--dim);font-size:13px;font-weight:600;cursor:pointer;}
+.btn-cancel:hover{background:rgba(255,255,255,.1);color:var(--text);}
+.del-info{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:var(--rs);padding:12px 16px;font-size:13px;color:#f87171;margin-bottom:6px;}
+.btn-del{padding:9px 22px;background:linear-gradient(135deg,var(--red),#b91c1c);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;}
+.btn-del:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(239,68,68,.3);}
 
-        .page-header { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:32px; }
-        .page-eyebrow { font-size:11px; font-weight:500; letter-spacing:0.25em; text-transform:uppercase; color:var(--gold); margin-bottom:10px; display:flex; align-items:center; gap:10px; }
-        .page-eyebrow::before { content:''; width:28px; height:1px; background:var(--gold); }
-        .page-header h2 { font-family:'Cormorant Garamond',serif; font-size:44px; font-weight:300; line-height:1.1; }
-        .page-header h2 em { font-style:italic; color:var(--gold-light); }
+/* BILL MODAL */
+.bill-header{text-align:center;margin-bottom:20px;}
+.bill-header h3{font-size:20px;font-weight:700;color:var(--gold);}
+.bill-header p{font-size:12px;color:var(--dim);margin-top:3px;}
+.bill-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.bi-row{background:rgba(255,255,255,.04);border-radius:var(--rs);padding:10px 12px;}
+.bi-lbl{font-size:10px;color:var(--dim2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px;}
+.bi-val{font-size:13px;font-weight:600;}
+.bill-table{width:100%;border-collapse:collapse;margin-bottom:4px;}
+.bill-table td{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--border);}
+.bill-table tr:last-child td{border-bottom:none;}
+.bill-table .bl{color:var(--dim);}
+.bill-table .br{text-align:right;font-family:'JetBrains Mono',monospace;}
+.bill-total{background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.2);border-radius:var(--rs);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+.bill-total .tl{font-size:14px;font-weight:700;color:var(--gold);}
+.bill-total .tv{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--gl);}
+.btn-print{padding:9px 22px;background:rgba(201,169,110,.15);border:1px solid rgba(201,169,110,.3);color:var(--gold);border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;}
+.btn-print:hover{background:rgba(201,169,110,.25);}
 
-        /* KPI */
-        .kpi-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:32px; }
-        .kpi-card { background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:20px 22px; position:relative; overflow:hidden; transition:transform 0.3s,border-color 0.3s; }
-        .kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--gold),transparent); opacity:0.5; }
-        .kpi-card:hover { transform:translateY(-3px); border-color:rgba(201,169,110,0.3); }
-        .kpi-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-        .kpi-icon { font-size:22px; }
-        .kpi-badge { font-size:10px; font-weight:600; letter-spacing:0.08em; padding:3px 8px; border-radius:100px; }
-        .badge-gold  { background:rgba(201,169,110,0.2); border:1px solid rgba(201,169,110,0.4); color:var(--gold-light); }
-        .badge-teal  { background:rgba(14,116,144,0.2);  border:1px solid rgba(14,116,144,0.35); color:#67e8f9; }
-        .badge-green { background:rgba(16,185,129,0.2);  border:1px solid rgba(16,185,129,0.3);  color:#6ee7b7; }
-        .kpi-num { font-family:'Cormorant Garamond',serif; font-size:38px; font-weight:700; color:var(--gold-light); line-height:1; margin-bottom:4px; }
-        .kpi-label { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); }
-
-        .section-label { font-size:10px; letter-spacing:0.3em; text-transform:uppercase; color:var(--text-dim); margin-bottom:16px; display:flex; align-items:center; gap:14px; }
-        .section-label::after { content:''; flex:1; height:1px; background:var(--glass-border); }
-
-        /* SEARCH */
-        .search-form { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
-        .search-wrapper { position:relative; flex:1; max-width:420px; }
-        .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:15px; color:var(--text-dim); pointer-events:none; }
-        .search-wrapper input { width:100%; padding:11px 14px 11px 42px; background:rgba(3,9,20,0.78); border:1px solid var(--glass-border); border-radius:12px; color:white; font-family:'DM Sans',sans-serif; font-size:13px; outline:none; transition:border-color 0.25s,box-shadow 0.25s; }
-        .search-wrapper input:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,169,110,0.12); }
-        .search-wrapper input::placeholder { color:var(--text-dim); }
-        .btn-search { padding:11px 26px; border-radius:12px; border:none; background:linear-gradient(135deg,#c9a96e,#e8c98a); color:var(--deep-navy); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.05em; cursor:pointer; transition:all 0.3s; }
-        .btn-search:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(201,169,110,0.4); }
-        .btn-reset { padding:11px 18px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); color:var(--text-dim); font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; text-decoration:none; display:inline-flex; align-items:center; }
-        .btn-reset:hover { background:rgba(255,255,255,0.1); color:white; }
-
-        .search-banner { background:linear-gradient(135deg,rgba(201,169,110,0.15),rgba(201,169,110,0.06)); border:1px solid rgba(201,169,110,0.3); border-radius:12px; padding:11px 18px; font-size:13px; color:var(--gold-light); margin-bottom:16px; display:flex; align-items:center; gap:10px; }
-
-        /* TABLE */
-        .table-wrap { background:var(--glass); border:1px solid var(--glass-border); border-radius:20px; overflow:hidden; margin-bottom:28px; overflow-x:auto; }
-        table { width:100%; border-collapse:collapse; min-width:860px; }
-        thead tr { background:rgba(255,255,255,0.04); border-bottom:1px solid var(--glass-border); }
-        th { padding:14px 16px; text-align:left; font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); white-space:nowrap; }
-        tbody tr { border-bottom:1px solid rgba(255,255,255,0.05); transition:background 0.2s; }
-        tbody tr:last-child { border-bottom:none; }
-        tbody tr:hover { background:rgba(201,169,110,0.06); }
-        td { padding:13px 16px; font-size:13px; vertical-align:middle; }
-
-        .res-no { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:700; color:var(--gold-light); letter-spacing:0.06em; }
-        .guest-name { font-weight:500; color:white; }
-        .address-cell { font-size:12px; color:var(--text-dim); }
-        .contact-cell { font-size:12px; color:#67e8f9; white-space:nowrap; }
-        .room-badge { display:inline-flex; align-items:center; background:rgba(14,116,144,0.18); border:1px solid rgba(14,116,144,0.3); color:#67e8f9; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; }
-        .date-cell { font-size:12px; color:var(--text-dim); white-space:nowrap; }
-
-        .btn-sm { padding:7px 14px; border-radius:9px; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border:none; transition:all 0.2s; letter-spacing:0.04em; white-space:nowrap; }
-        .btn-bill { background:linear-gradient(135deg,rgba(201,169,110,0.3),rgba(201,169,110,0.1)); border:1px solid rgba(201,169,110,0.45); color:var(--gold-light); }
-        .btn-bill:hover { background:linear-gradient(135deg,rgba(201,169,110,0.5),rgba(201,169,110,0.25)); transform:translateY(-1px); box-shadow:0 4px 14px rgba(201,169,110,0.25); }
-
-        .empty-state { text-align:center; padding:60px 20px; color:var(--text-dim); }
-        .empty-state .empty-icon { font-size:42px; margin-bottom:12px; opacity:0.5; }
-        .empty-state p { font-size:14px; }
-
-        /* BILL MODAL */
-        .modal-overlay { position:fixed; inset:0; z-index:200; background:rgba(5,13,26,0.88); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; padding:20px; }
-        .modal-overlay.open { display:flex; }
-        .modal { background:linear-gradient(145deg,rgba(10,22,40,0.99),rgba(5,13,26,0.99)); border:1px solid rgba(201,169,110,0.28); border-radius:24px; padding:40px; width:100%; max-width:560px; box-shadow:0 40px 100px rgba(0,0,0,0.8); position:relative; animation:slideUp 0.3s cubic-bezier(0.25,0.46,0.45,0.94); }
-        @keyframes slideUp { from{opacity:0;transform:translateY(22px);} to{opacity:1;transform:translateY(0);} }
-        .modal-close { position:absolute; top:18px; right:20px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); color:var(--text-dim); width:32px; height:32px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; transition:all 0.2s; }
-        .modal-close:hover { background:rgba(255,59,48,0.25); border-color:rgba(255,59,48,0.4); color:#ff6b6b; }
-
-        .bill-header { text-align:center; margin-bottom:22px; }
-        .bill-resort-name { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:600; letter-spacing:0.04em; margin-bottom:4px; }
-        .bill-resort-name span { color:var(--gold); }
-        .bill-subtitle { font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-dim); }
-        .bill-ref { font-size:12px; letter-spacing:0.12em; color:var(--gold-light); margin-top:8px; font-weight:600; }
-        .bill-divider { height:1px; margin:18px 0; background:linear-gradient(90deg,transparent,var(--gold),transparent); opacity:0.35; }
-
-        .bill-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
-        .bill-info-item { background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); border-radius:10px; padding:11px 14px; }
-        .bill-info-label { font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); margin-bottom:4px; }
-        .bill-info-value { font-size:13px; font-weight:500; color:white; }
-
-        .bill-items { margin-bottom:16px; }
-        .bill-item { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:13px; }
-        .bill-item:last-child { border-bottom:none; }
-        .bill-item-label { color:var(--text-dim); }
-        .bill-item-value { font-weight:500; color:white; }
-
-        .bill-total { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-radius:14px; background:linear-gradient(135deg,rgba(201,169,110,0.2),rgba(201,169,110,0.08)); border:1px solid rgba(201,169,110,0.35); margin-top:12px; }
-        .bill-total-label { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:600; }
-        .bill-total-value { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:700; color:var(--gold-light); }
-
-        .bill-actions { display:flex; gap:10px; margin-top:20px; }
-        .btn-print { flex:1; padding:13px; border:none; border-radius:12px; background:linear-gradient(135deg,#c9a96e,#e8c98a); color:var(--deep-navy); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; transition:all 0.3s; }
-        .btn-print:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(201,169,110,0.4); }
-        .btn-close-bill { padding:13px 20px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); color:var(--text-dim); font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; }
-        .btn-close-bill:hover { background:rgba(255,255,255,0.1); color:white; }
-
-        /* PRINT */
-        @media print {
-            body * { visibility:hidden; }
-            .modal, .modal * { visibility:visible; }
-            .modal { position:fixed; inset:0; border:none; box-shadow:none; background:white; color:black; padding:36px; border-radius:0; max-width:100%; }
-            .modal-close, .bill-actions { display:none !important; }
-            .bill-resort-name { color:black !important; }
-            .bill-resort-name span, .bill-total-value, .bill-ref { color:#8B6914 !important; }
-            .bill-info-item, .bill-total { background:#f9f5ef !important; border-color:#d4b483 !important; }
-            .bill-info-label, .bill-item-label, .bill-subtitle { color:#666 !important; }
-            .bill-info-value, .bill-item-value, .bill-total-label { color:#111 !important; }
-        }
-
-        .footer { text-align:center; margin-top:60px; font-size:12px; color:var(--text-dim); letter-spacing:0.08em; }
-        .footer::before { content:''; display:block; width:50px; height:1px; background:var(--gold); margin:0 auto 14px; }
-
-        @media(max-width:1024px){ .kpi-strip{grid-template-columns:1fr 1fr 1fr;} }
-        @media(max-width:768px){ .container{padding:110px 18px 60px;} .navbar{padding:12px 18px;} .kpi-strip{grid-template-columns:1fr 1fr;} .page-header h2{font-size:32px;} .bill-info-grid{grid-template-columns:1fr;} }
-    </style>
+@media print{
+  body *{visibility:hidden;}
+  #billModal,#billModal *{visibility:visible;}
+  #billModal{position:fixed;inset:0;display:flex!important;background:white;padding:0;align-items:center;justify-content:center;}
+  #billModal .modal{background:white;color:black;border:none;padding:40px;max-width:100%;border-radius:0;max-height:none;}
+  #billModal .mc,#billModal .m-actions{display:none!important;}
+  #billModal .bill-total .tl{color:#8B6914;}
+  #billModal .bi-row{background:#f5f0e8;}
+  #billModal .bi-lbl{color:#666;}
+}
+@media(max-width:900px){.sidebar{transform:translateX(-100%);}.main{margin-left:0;}.kpis{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.content{padding:16px;}.kpis{grid-template-columns:1fr;}.form-row{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
 
-<div class="hero-bg"></div>
-<div class="wave-container"><div class="wave"></div><div class="wave"></div></div>
-<div class="particles" id="particles"></div>
-
-<!-- NAVBAR -->
-<div class="navbar">
-    <h1>
-        <span class="wave-icon">🌊</span>
-        Ocean<span class="nav-gold">&nbsp;View</span>&nbsp;Resort
-        <span class="staff-badge">Staff</span>
-    </h1>
-    <div class="navbar-right">
-        <div class="user-badge">
-            <div class="user-avatar" id="avatarInitial">S</div>
-            <span>Staff, <strong><%= staffName %></strong></span>
-        </div>
-        <a href="logout" class="logout-btn">↩ Logout</a>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="s-logo">
+    <span class="icon">🌊</span>
+    <div class="title">Ocean View Resort</div>
+    <div class="sub">Staff Portal</div>
+  </div>
+  <nav class="s-nav">
+    <div class="s-sec">Main</div>
+    <a class="s-item active" href="Staff">
+      <div class="s-icon">📋</div> Reservations
+      <span class="s-badge"><%= totalRes %></span>
+    </a>
+    <a class="s-item" href="calculateBill.jsp">
+      <div class="s-icon">🧾</div> Bill Calculator
+    </a>
+  </nav>
+  <div class="s-foot">
+    <div class="u-card">
+      <div class="u-av"><%= String.valueOf(staffName.charAt(0)).toUpperCase() %></div>
+      <div>
+        <div class="u-name"><%= staffName %></div>
+        <div class="u-role">Staff Member</div>
+      </div>
     </div>
-</div>
+    <a class="logout" href="logout">↩ Sign Out</a>
+  </div>
+</aside>
 
-<div class="container">
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="t-title">Staff <span>Dashboard</span></div>
+    <div class="t-pill"><div class="dot"></div> 🪪 Staff Access</div>
+  </div>
 
-    <!-- PAGE HEADER -->
-    <div class="page-header">
-        <div>
-            <div class="page-eyebrow">Staff Operations Panel</div>
-            <h2>Booking <em>Management</em></h2>
-        </div>
-    </div>
+  <div class="content">
 
-    <!-- KPI STRIP -->
-    <div class="kpi-strip">
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">📋</span><span class="kpi-badge badge-gold">TOTAL</span></div>
-            <div class="kpi-num"><%= totalBookings %></div>
-            <div class="kpi-label">Total Reservations</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">🔍</span><span class="kpi-badge badge-teal">RESULTS</span></div>
-            <div class="kpi-num"><%= reservations.size() %></div>
-            <div class="kpi-label"><%= searchNo.isEmpty() ? "Showing All" : "Search Results" %></div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-top"><span class="kpi-icon">🧾</span><span class="kpi-badge badge-green">READY</span></div>
-            <div class="kpi-num"><%= reservations.size() %></div>
-            <div class="kpi-label">Bills Available</div>
-        </div>
-    </div>
-
-    <!-- SECTION LABEL -->
-    <div class="section-label">Reservations</div>
-
-    <!-- SEARCH FORM -->
-    <form class="search-form" method="GET" action="staffDashboard.jsp">
-        <div class="search-wrapper">
-            <span class="search-icon">🔍</span>
-            <input type="text" name="search" id="searchInput"
-                   placeholder="Search by Reservation No  (e.g. RES-002)"
-                   value="<%= searchNo %>"/>
-        </div>
-        <button type="submit" class="btn-search">🔎 Search</button>
-        <% if (!searchNo.isEmpty()) { %>
-        <a href="staffDashboard.jsp" class="btn-reset">✕ Clear</a>
-        <% } %>
-    </form>
-
-    <!-- RESULT BANNER -->
-    <% if (!searchNo.isEmpty()) { %>
-    <div class="search-banner">
-        🔎 &nbsp;Results for &nbsp;<strong>"<%= searchNo %>"</strong>
-        &nbsp;— &nbsp;<%= reservations.size() %> record(s) found
-    </div>
+    <!-- Flash -->
+    <% if (flashOk != null) { %>
+      <div class="flash f-ok" id="flashMsg">✅ <%= flashOk %></div>
+    <% } %>
+    <% if (flashErr != null) { %>
+      <div class="flash f-err" id="flashMsg">⚠ <%= flashErr %></div>
     <% } %>
 
-    <!-- TABLE -->
-    <div class="table-wrap">
+    <!-- Page Header -->
+    <div class="ph">
+      <div>
+        <h1>Manage <span>Reservations</span></h1>
+        <p>Welcome back, <strong><%= staffName %></strong>. Add, edit or delete guest reservations.</p>
+      </div>
+      <button class="btn-add" onclick="openAdd()">➕ Add Reservation</button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">📋</div><span class="kpi-badge kb1">Total</span></div>
+        <div class="kpi-num kn1"><%= totalRes %></div>
+        <div class="kpi-label">Total reservations</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">📅</div><span class="kpi-badge kb2">Today</span></div>
+        <div class="kpi-num kn2"><%= todayRes %></div>
+        <div class="kpi-label">Check-ins today</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><div class="kpi-icon">🔍</div><span class="kpi-badge kb3">Showing</span></div>
+        <div class="kpi-num kn3"><%= reservations.size() %></div>
+        <div class="kpi-label">Records displayed</div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <div>
+          <h2>Reservation <span>List</span></h2>
+          <p>Showing <%= reservations.size() %> record(s)
+            <% if (!search.isEmpty()) { %> — matching "<strong><%= search %></strong>"<% } %>
+          </p>
+        </div>
+        <form method="GET" action="Staff">
+          <div class="srch">
+            <input type="text" name="search" placeholder="Search by no, name, contact…"
+                   value="<%= search %>" autocomplete="off"/>
+            <button type="submit">🔍</button>
+            <% if (!search.isEmpty()) { %>
+              <a href="Staff">✕</a>
+            <% } %>
+          </div>
+        </form>
+      </div>
+
+      <!-- Table -->
+      <% if (reservations.isEmpty()) { %>
+        <div class="empty">
+          <div class="ei">📋</div>
+          <h3>No reservations found</h3>
+          <p><% if (!search.isEmpty()) { %>No records match "<%= search %>". Try a different search.<% } else { %>No reservations yet. Click "Add Reservation" to get started.<% } %></p>
+        </div>
+      <% } else { %>
         <table>
-            <thead>
-                <tr>
-                    <th>Reservation No</th>
-                    <th>Guest Name</th>
-                    <th>Address</th>
-                    <th>Contact</th>
-                    <th>Room Type</th>
-                    <th>Check-In Date</th>
-                    <th>Check-Out Date</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-            <%
-            if (reservations.isEmpty()) {
+          <thead>
+            <tr>
+              <th>#</th><th>Res. No</th><th>Guest Name</th><th>Contact</th>
+              <th>Room Type</th><th>Check-In</th><th>Check-Out</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% int row = 1;
+               for (String[] r : reservations) {
+                 String rnJs = r[0].replace("'", "\\'");
+                 String gnJs = r[1].replace("'", "\\'");
+                 String adJs = r[2].replace("'", "\\'");
+                 String ctJs = r[3].replace("'", "\\'");
+                 String rtJs = r[4].replace("'", "\\'");
             %>
-                <tr><td colspan="8">
-                    <div class="empty-state">
-                        <div class="empty-icon"><%= searchNo.isEmpty() ? "🏖️" : "🔍" %></div>
-                        <p><%= searchNo.isEmpty()
-                            ? "No reservations found in the system."
-                            : "No reservation found matching &quot;" + searchNo + "&quot;." %></p>
-                    </div>
-                </td></tr>
-            <%
-            } else {
-                for (java.util.Map<String,String> r : reservations) {
-                    String resNo    = r.get("reservation_no") != null ? r.get("reservation_no") : "—";
-                    String guest    = r.get("guest_name")     != null ? r.get("guest_name")     : "—";
-                    String address  = r.get("address")        != null ? r.get("address")        : "—";
-                    String contact  = r.get("contact")        != null ? r.get("contact")        : "—";
-                    String roomType = r.get("room_type")      != null ? r.get("room_type")      : "—";
-                    String checkIn  = r.get("checkin_date")   != null ? r.get("checkin_date")   : "—";
-                    String checkOut = r.get("checkout_date")  != null ? r.get("checkout_date")  : "—";
-
-                    // Match rate from rateMap
-                    int rate = 80;
-                    String rtKey = roomType.toLowerCase().trim();
-                    for (java.util.Map.Entry<String,Integer> e : rateMap.entrySet()) {
-                        if (rtKey.contains(e.getKey())) { rate = e.getValue(); break; }
-                    }
-            %>
-                <tr>
-                    <td><span class="res-no"><%= resNo %></span></td>
-                    <td><span class="guest-name"><%= guest %></span></td>
-                    <td><span class="address-cell"><%= address %></span></td>
-                    <td><span class="contact-cell">📞 <%= contact %></span></td>
-                    <td><span class="room-badge">🏨 <%= roomType %></span></td>
-                    <td class="date-cell">📅 <%= checkIn %></td>
-                    <td class="date-cell">📅 <%= checkOut %></td>
-                    <td>
-                        <button class="btn-sm btn-bill" onclick="openBill(
-                            '<%= resNo %>',
-                            '<%= guest.replace("'","\\'") %>',
-                            '<%= address.replace("'","\\'") %>',
-                            '<%= contact %>',
-                            '<%= roomType %>',
-                            '<%= checkIn %>',
-                            '<%= checkOut %>',
-                            '<%= rate %>'
-                        )">🧾 Calculate Bill</button>
-                    </td>
-                </tr>
-            <%  } } %>
-            </tbody>
+            <tr>
+              <td style="color:var(--dim);font-size:12px;font-family:'JetBrains Mono',monospace;"><%= row++ %></td>
+              <td><span class="td-rno"><%= r[0] %></span></td>
+              <td>
+                <strong><%= r[1] %></strong><br/>
+                <span style="font-size:11px;color:var(--dim2);"><%= r[2] %></span>
+              </td>
+              <td style="font-size:12px;"><%= r[3] %></td>
+              <td><span class="room-chip">🏨 <%= r[4] %></span></td>
+              <td style="font-size:12px;color:var(--dim);font-family:'JetBrains Mono',monospace;"><%= r[5] %></td>
+              <td style="font-size:12px;color:var(--dim);font-family:'JetBrains Mono',monospace;"><%= r[6] %></td>
+              <td>
+                <div class="act-btns">
+                  <button class="ab ab-edit"
+                    onclick="openEdit('<%= rnJs %>','<%= gnJs %>','<%= adJs %>','<%= ctJs %>','<%= rtJs %>','<%= r[5] %>','<%= r[6] %>')">
+                    ✏️ Edit
+                  </button>
+                  <button class="ab ab-bill"
+                    onclick="openBill('<%= rnJs %>','<%= gnJs %>','<%= adJs %>','<%= ctJs %>','<%= rtJs %>','<%= r[5] %>','<%= r[6] %>')">
+                    🧾 Bill
+                  </button>
+                  <button class="ab ab-del"
+                    onclick="openDel('<%= rnJs %>','<%= gnJs %>')">
+                    🗑️ Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <% } %>
+          </tbody>
         </table>
+      <% } %>
     </div>
 
-    <div class="footer">
-        © 2026 Ocean View Resort &nbsp;·&nbsp; Staff Operations &nbsp;·&nbsp; All rights reserved
-    </div>
+  </div>
 </div>
 
-<!-- BILL MODAL -->
-<div class="modal-overlay" id="billModal">
-    <div class="modal">
-        <button class="modal-close" onclick="closeBill()">✕</button>
 
-        <div class="bill-header">
-            <div class="bill-resort-name">🌊 Ocean <span>View</span> Resort</div>
-            <div class="bill-subtitle">Official Guest Invoice</div>
-            <div class="bill-ref" id="billRef">—</div>
+<!-- MODAL — ADD -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <button class="mc" onclick="closeAdd()">✕</button>
+    <div class="m-title">Add <span>Reservation</span></div>
+    <div class="m-sub">Enter guest and booking details below.</div>
+    <div class="m-div"></div>
+    <form method="POST" action="Staff" onsubmit="return validateDates('add_ci','add_co')">
+      <input type="hidden" name="action" value="add"/>
+      <input type="hidden" name="search" value="<%= search %>"/>
+      <div class="fg">
+        <label>Reservation No <span class="req">*</span></label>
+        <input class="fc" type="text" name="reservationNo" id="add_rno" placeholder="e.g. RES-001" required autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label>Guest Name <span class="req">*</span></label>
+        <input class="fc" type="text" name="guestName" placeholder="Full name" required/>
+      </div>
+      <div class="fg">
+        <label>Address</label>
+        <input class="fc" type="text" name="address" placeholder="Guest address"/>
+      </div>
+      <div class="fg">
+        <label>Contact <span class="req">*</span></label>
+        <input class="fc" type="text" name="contact" placeholder="Phone number" required/>
+      </div>
+      <div class="fg">
+        <label>Room Type <span class="req">*</span></label>
+        <select class="fc" name="roomType" required>
+          <option value="">-- Select Room --</option>
+          <option value="Standard">Standard ($80/night)</option>
+          <option value="Deluxe">Deluxe ($150/night)</option>
+          <option value="Family">Family ($180/night)</option>
+          <option value="Ocean View">Ocean View ($220/night)</option>
+          <option value="Suite">Suite ($250/night)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="fg">
+          <label>Check-In <span class="req">*</span></label>
+          <input class="fc" type="date" name="checkin" id="add_ci" required/>
         </div>
-
-        <div class="bill-divider"></div>
-
-        <div class="bill-info-grid">
-            <div class="bill-info-item"><div class="bill-info-label">Guest Name</div><div class="bill-info-value" id="billGuest">—</div></div>
-            <div class="bill-info-item"><div class="bill-info-label">Contact No</div><div class="bill-info-value" id="billContact">—</div></div>
-            <div class="bill-info-item"><div class="bill-info-label">Address</div><div class="bill-info-value" id="billAddress">—</div></div>
-            <div class="bill-info-item"><div class="bill-info-label">Room Type</div><div class="bill-info-value" id="billRoomType">—</div></div>
-            <div class="bill-info-item"><div class="bill-info-label">Check-In Date</div><div class="bill-info-value" id="billCheckIn">—</div></div>
-            <div class="bill-info-item"><div class="bill-info-label">Check-Out Date</div><div class="bill-info-value" id="billCheckOut">—</div></div>
+        <div class="fg">
+          <label>Check-Out <span class="req">*</span></label>
+          <input class="fc" type="date" name="checkout" id="add_co" required/>
         </div>
-
-        <div class="bill-divider"></div>
-
-        <div class="bill-items">
-            <div class="bill-item"><span class="bill-item-label">🌙 Number of Nights</span><span class="bill-item-value" id="billNights">—</span></div>
-            <div class="bill-item"><span class="bill-item-label">🛏️ Rate Per Night</span><span class="bill-item-value" id="billRate">—</span></div>
-            <div class="bill-item"><span class="bill-item-label">🏨 Room Charges</span><span class="bill-item-value" id="billRoomCharge">—</span></div>
-            <div class="bill-item"><span class="bill-item-label">🧹 Service & Housekeeping (10%)</span><span class="bill-item-value" id="billService">—</span></div>
-            <div class="bill-item"><span class="bill-item-label">🏛️ Tax (8%)</span><span class="bill-item-value" id="billTax">—</span></div>
-        </div>
-
-        <div class="bill-total">
-            <span class="bill-total-label">Total Amount Due</span>
-            <span class="bill-total-value" id="billTotal">$0.00</span>
-        </div>
-
-        <div class="bill-actions">
-            <button class="btn-print" onclick="window.print()">🖨️ Print Invoice</button>
-            <button class="btn-close-bill" onclick="closeBill()">Close</button>
-        </div>
-    </div>
+      </div>
+      <div class="m-actions">
+        <button type="button" class="btn-cancel" onclick="closeAdd()">Cancel</button>
+        <button type="submit" class="btn-save">✅ Add Reservation</button>
+      </div>
+    </form>
+  </div>
 </div>
+
+
+<!-- MODAL — EDIT -->
+<div class="overlay" id="editModal">
+  <div class="modal">
+    <button class="mc" onclick="closeEdit()">✕</button>
+    <div class="m-title">Edit <span>Reservation</span></div>
+    <div class="m-sub">Update the reservation details below.</div>
+    <div class="m-div"></div>
+    <form method="POST" action="Staff" onsubmit="return validateDates('edit_ci','edit_co')">
+      <input type="hidden" name="action"        value="edit"/>
+      <input type="hidden" name="search"        value="<%= search %>"/>
+      <input type="hidden" name="reservationNo" id="edit_rno"/>
+      <div class="fg">
+        <label>Reservation No</label>
+        <input class="fc" type="text" id="edit_rno_display" disabled style="opacity:.5;"/>
+      </div>
+      <div class="fg">
+        <label>Guest Name <span class="req">*</span></label>
+        <input class="fc" type="text" name="guestName" id="edit_gn" required/>
+      </div>
+      <div class="fg">
+        <label>Address</label>
+        <input class="fc" type="text" name="address" id="edit_ad"/>
+      </div>
+      <div class="fg">
+        <label>Contact <span class="req">*</span></label>
+        <input class="fc" type="text" name="contact" id="edit_ct" required/>
+      </div>
+      <div class="fg">
+        <label>Room Type <span class="req">*</span></label>
+        <select class="fc" name="roomType" id="edit_rt" required>
+          <option value="Standard">Standard ($80/night)</option>
+          <option value="Deluxe">Deluxe ($150/night)</option>
+          <option value="Family">Family ($180/night)</option>
+          <option value="Ocean View">Ocean View ($220/night)</option>
+          <option value="Suite">Suite ($250/night)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="fg">
+          <label>Check-In <span class="req">*</span></label>
+          <input class="fc" type="date" name="checkin" id="edit_ci" required/>
+        </div>
+        <div class="fg">
+          <label>Check-Out <span class="req">*</span></label>
+          <input class="fc" type="date" name="checkout" id="edit_co" required/>
+        </div>
+      </div>
+      <div class="m-actions">
+        <button type="button" class="btn-cancel" onclick="closeEdit()">Cancel</button>
+        <button type="submit" class="btn-save">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- MODAL — DELETE -->
+<div class="overlay" id="delModal">
+  <div class="modal" style="max-width:400px;">
+    <button class="mc" onclick="closeDel()">✕</button>
+    <div class="m-title" style="color:var(--red);">🗑️ Delete <span style="color:var(--red);">Reservation</span></div>
+    <div class="m-sub">This action is permanent and cannot be undone.</div>
+    <div class="m-div"></div>
+    <div class="del-info" id="del_label"></div>
+    <p style="font-size:13px;color:var(--dim);margin-top:8px;">Are you sure you want to delete this reservation?</p>
+    <div class="m-actions">
+      <button type="button" class="btn-cancel" onclick="closeDel()">Cancel</button>
+      <button type="button" class="btn-del" id="del_confirm">🗑️ Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL — BILL -->
+<div class="overlay" id="billModal">
+  <div class="modal" style="max-width:460px;">
+    <button class="mc" onclick="closeBill()">✕</button>
+    <div class="bill-header">
+      <h3>🌊 Ocean View Resort</h3>
+      <p>Guest Invoice &nbsp;|&nbsp; <span id="b_rno" style="font-family:'JetBrains Mono',monospace;color:var(--gold);"></span></p>
+    </div>
+    <div class="m-div"></div>
+    <div class="bill-info">
+      <div class="bi-row"><div class="bi-lbl">Guest Name</div><div class="bi-val" id="b_gn"></div></div>
+      <div class="bi-row"><div class="bi-lbl">Contact</div><div class="bi-val" id="b_ct"></div></div>
+      <div class="bi-row"><div class="bi-lbl">Address</div><div class="bi-val" id="b_ad"></div></div>
+      <div class="bi-row"><div class="bi-lbl">Room Type</div><div class="bi-val" id="b_rt"></div></div>
+      <div class="bi-row"><div class="bi-lbl">Check-In</div><div class="bi-val" id="b_ci"></div></div>
+      <div class="bi-row"><div class="bi-lbl">Check-Out</div><div class="bi-val" id="b_co"></div></div>
+    </div>
+    <table class="bill-table">
+      <tr><td class="bl">Room Charges (<span id="b_nights"></span> × <span id="b_rate"></span>)</td><td class="br" id="b_rc"></td></tr>
+      <tr><td class="bl">Service Charge (10%)</td><td class="br" id="b_svc"></td></tr>
+      <tr><td class="bl">Tax (8%)</td><td class="br" id="b_tax"></td></tr>
+    </table>
+    <div class="bill-total">
+      <span class="tl">Total Amount</span>
+      <span class="tv" id="b_total"></span>
+    </div>
+    <div class="m-actions">
+      <button type="button" class="btn-cancel" onclick="closeBill()">Close</button>
+      <button type="button" class="btn-print" onclick="window.print()">🖨️ Print Invoice</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
-    // Avatar initial
-    var sn = "<%= staffName %>";
-    document.getElementById("avatarInitial").textContent = sn ? sn.charAt(0).toUpperCase() : "S";
+/* Flash auto-dismiss */
+(function(){
+  var fm = document.getElementById('flashMsg');
+  if(!fm) return;
+  setTimeout(function(){ fm.style.transition='opacity .5s'; fm.style.opacity='0'; setTimeout(function(){fm.remove();},500); },4500);
+})();
 
-    // Particles
-    var pc = document.getElementById("particles");
-    for (var i = 0; i < 16; i++) {
-        var p = document.createElement("div");
-        p.className = "particle";
-        p.style.cssText = "--x:"+Math.random()*100+"%;--dur:"+(12+Math.random()*14)+"s;--delay:"+(Math.random()*12)+"s";
-        pc.appendChild(p);
-    }
+function lock()  { document.body.style.overflow='hidden'; }
+function unlock(){ document.body.style.overflow=''; }
+function ov(id)  { return document.getElementById(id); }
 
-    // Navbar scroll
-    var ticking = false;
-    window.addEventListener("scroll", function(){
-        if (!ticking) {
-            requestAnimationFrame(function(){
-                document.querySelector(".navbar").style.background =
-                    window.scrollY > 50 ? "rgba(5,13,26,0.98)" : "rgba(5,13,26,0.92)";
-                ticking = false;
-            });
-            ticking = true;
-        }
-    }, {passive:true});
+/* Date validation */
+function validateDates(ciId, coId){
+  var ci = new Date(ov(ciId).value);
+  var co = new Date(ov(coId).value);
+  if(co <= ci){ alert('Check-out date must be after check-in date.'); return false; }
+  return true;
+}
 
-    // ── Bill Modal ──
-    function openBill(resNo, guest, address, contact, roomType, checkIn, checkOut, rate) {
-        document.getElementById("billRef").textContent      = "Reservation No: " + resNo;
-        document.getElementById("billGuest").textContent    = guest;
-        document.getElementById("billContact").textContent  = contact;
-        document.getElementById("billAddress").textContent  = address;
-        document.getElementById("billRoomType").textContent = roomType;
-        document.getElementById("billCheckIn").textContent  = checkIn;
-        document.getElementById("billCheckOut").textContent = checkOut;
+/* ADD */
+function openAdd(){ ov('addModal').classList.add('open'); lock(); setTimeout(function(){ ov('add_rno').focus(); },80); }
+function closeAdd(){ ov('addModal').classList.remove('open'); unlock(); }
 
-        var rateNum = parseFloat(rate) || 0;
-        document.getElementById("billRate").textContent = "$" + rateNum.toFixed(2) + " / night";
+/* EDIT */
+function openEdit(rno,gn,ad,ct,rt,ci,co){
+  ov('edit_rno').value         = rno;
+  ov('edit_rno_display').value = rno;
+  ov('edit_gn').value          = gn;
+  ov('edit_ad').value          = ad;
+  ov('edit_ct').value          = ct;
+  ov('edit_ci').value          = ci;
+  ov('edit_co').value          = co;
+  var sel = ov('edit_rt');
+  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===rt){ sel.selectedIndex=i; break; } }
+  ov('editModal').classList.add('open'); lock();
+}
+function closeEdit(){ ov('editModal').classList.remove('open'); unlock(); }
 
-        var nights = 0;
-        if (checkIn && checkOut && checkIn !== "—" && checkOut !== "—") {
-            var diff = new Date(checkOut) - new Date(checkIn);
-            if (diff > 0) nights = Math.round(diff / 86400000);
-        }
+/* DELETE */
+var _dr = '';
+function openDel(rno, gn){
+  _dr = rno;
+  ov('del_label').textContent = rno + ' — ' + gn;
+  ov('del_confirm').onclick = function(){
+    window.location.href = 'Staff?action=delete&reservation_no=' + encodeURIComponent(_dr)
+      + '<%= !search.isEmpty() ? "&search=" + search : "" %>';
+  };
+  ov('delModal').classList.add('open'); lock();
+}
+function closeDel(){ ov('delModal').classList.remove('open'); unlock(); }
 
-        var roomCharge = rateNum * nights;
-        var service    = roomCharge * 0.10;
-        var tax        = roomCharge * 0.08;
-        var total      = roomCharge + service + tax;
+/* BILL */
+var rates = {standard:80, deluxe:150, family:180, 'ocean view':220, suite:250};
+function getRate(rt){ var k=rt.toLowerCase(); for(var r in rates){ if(k.indexOf(r)>=0) return rates[r]; } return 80; }
+function fmt(n){ return '$'+n.toFixed(2); }
+function openBill(rno,gn,ad,ct,rt,ci,co){
+  ov('b_rno').textContent=rno; ov('b_gn').textContent=gn; ov('b_ct').textContent=ct;
+  ov('b_ad').textContent=ad;  ov('b_rt').textContent=rt; ov('b_ci').textContent=ci; ov('b_co').textContent=co;
+  var nights=0;
+  if(ci&&co){ var d=new Date(co)-new Date(ci); if(d>0) nights=Math.round(d/86400000); }
+  var rate=getRate(rt); var rc=rate*nights; var svc=rc*0.10; var tax=rc*0.08; var tot=rc+svc+tax;
+  ov('b_nights').textContent=nights+(nights===1?' night':' nights');
+  ov('b_rate').textContent=fmt(rate)+'/night';
+  ov('b_rc').textContent=fmt(rc); ov('b_svc').textContent=fmt(svc);
+  ov('b_tax').textContent=fmt(tax); ov('b_total').textContent=fmt(tot);
+  ov('billModal').classList.add('open'); lock();
+}
+function closeBill(){ ov('billModal').classList.remove('open'); unlock(); }
 
-        document.getElementById("billNights").textContent     = nights + (nights === 1 ? " night" : " nights");
-        document.getElementById("billRoomCharge").textContent = "$" + roomCharge.toFixed(2);
-        document.getElementById("billService").textContent    = "$" + service.toFixed(2);
-        document.getElementById("billTax").textContent        = "$" + tax.toFixed(2);
-        document.getElementById("billTotal").textContent      = "$" + total.toFixed(2);
-
-        document.getElementById("billModal").classList.add("open");
-        document.body.style.overflow = "hidden";
-    }
-
-    function closeBill() {
-        document.getElementById("billModal").classList.remove("open");
-        document.body.style.overflow = "";
-    }
-
-    document.getElementById("billModal").addEventListener("click", function(e){
-        if (e.target === this) closeBill();
-    });
-
-    document.addEventListener("keydown", function(e){
-        if (e.key === "Escape") closeBill();
-    });
+/* Backdrop + Escape */
+['addModal','editModal','delModal','billModal'].forEach(function(id){
+  ov(id).addEventListener('click',function(e){ if(e.target===this){ this.classList.remove('open'); unlock(); } });
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ ['addModal','editModal','delModal','billModal'].forEach(function(id){ ov(id).classList.remove('open'); }); unlock(); }
+});
 </script>
 </body>
 </html>
