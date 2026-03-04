@@ -714,16 +714,6 @@
                 <div class="card-arrow">→</div>
             </div>
 
-            <!-- 4. Reports -->
-            <div class="card" onclick="location.href='reports.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">📊</div>
-                    <h3>Reports</h3>
-                    <p>View booking summaries, occupancy stats and analytics.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
 
             <!-- 5. Help -->
             <div class="card" onclick="location.href='help.jsp'">
