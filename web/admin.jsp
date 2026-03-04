@@ -1,7 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ page import="java.util.List, java.util.ArrayList" %>
 <%
-    // ── All data injected by AdminDashboard.java servlet ──────
     String adminName       = (String)  request.getAttribute("adminName");
     int    totalRes        = request.getAttribute("totalRes")   != null ? (int) request.getAttribute("totalRes")   : 0;
     int    totalUsers      = request.getAttribute("totalUsers") != null ? (int) request.getAttribute("totalUsers") : 0;
@@ -32,8 +31,6 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden;}
-
-/* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;}
 .sidebar-logo{padding:26px 22px 20px;border-bottom:1px solid var(--border);}
 .logo-badge{display:inline-flex;align-items:center;gap:10px;}
@@ -55,8 +52,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .user-role{font-size:10px;color:var(--gold);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;}
 .logout-link{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.18);color:rgba(239,68,68,0.8);text-decoration:none;font-size:13px;font-weight:500;transition:all 0.2s;}
 .logout-link:hover{background:rgba(239,68,68,0.18);color:#fca5a5;}
-
-/* MAIN */
 .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;}
 .topbar{background:rgba(5,8,16,0.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
 .topbar-title{font-size:16px;font-weight:600;}
@@ -71,8 +66,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .page-title em{font-style:normal;color:var(--gold);}
 .page-sub{font-size:13px;color:var(--dim);margin-bottom:28px;}
 .db-err{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#fca5a5;padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:20px;}
-
-/* STAT CARDS */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative;overflow:hidden;transition:transform 0.25s;}
 .stat-card:hover{transform:translateY(-3px);}
@@ -96,8 +89,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .c3 .stat-num{color:var(--green);}
 .c4 .stat-num{color:var(--amber);}
 .stat-label{font-size:12px;font-weight:500;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;}
-
-/* TWO COL */
 .two-col{display:grid;grid-template-columns:1fr 380px;gap:16px;margin-bottom:28px;}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
 .panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);}
@@ -121,8 +112,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .qa-text{flex:1;}
 .qa-arrow{color:var(--dim2);font-size:14px;transition:transform 0.2s;}
 .qa-item:hover .qa-arrow{transform:translateX(3px);color:var(--gold);}
-
-/* STATUS */
 .status-section{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .status-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 22px;}
 .sc-title{font-size:13px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;}
@@ -139,14 +128,12 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .occ-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));border-radius:100px;transition:width 1.2s cubic-bezier(0.4,0,0.2,1);}
 .occ-label{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:6px;}
 .occ-label strong{color:var(--gl);font-family:'JetBrains Mono',monospace;}
-
 @media(max-width:1200px){.stats-grid{grid-template-columns:repeat(2,1fr);}.two-col{grid-template-columns:1fr;}.status-section{grid-template-columns:1fr;}}
 @media(max-width:900px){.sidebar{transform:translateX(-100%);}.main{margin-left:0;}}
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-badge">
@@ -170,11 +157,11 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
     <a class="nav-item" href="calculateBill.jsp">
       <div class="nav-icon">🧾</div> Bill Calculator
     </a>
-    <a class="nav-item" href="adminReports.jsp">
+    <a class="nav-item" href="AdminReports">
       <div class="nav-icon">📈</div> Reports
     </a>
     <div class="nav-section">System</div>
-    <a class="nav-item" href="adminSettings.jsp">
+    <a class="nav-item" href="AdminSettings">
       <div class="nav-icon">⚙️</div> Settings
     </a>
   </nav>
@@ -190,7 +177,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
   </div>
 </aside>
 
-<!-- MAIN -->
 <div class="main">
   <div class="topbar">
     <div class="topbar-title">Admin <span>Dashboard</span></div>
@@ -202,16 +188,13 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 
   <div class="content">
 
-    <!-- DB Error -->
     <% if (!dbErr.isEmpty()) { %>
     <div class="db-err">🔌 Database error: <%= dbErr %> — Check MySQL is running in XAMPP.</div>
     <% } %>
 
-    <!-- Header -->
     <div class="page-title">Welcome back, <em><%= adminName %></em></div>
     <div class="page-sub">Here is what is happening at Ocean View Resort today.</div>
 
-    <!-- KPI Cards -->
     <div class="stats-grid">
       <div class="stat-card c1">
         <div class="stat-top"><div class="stat-icon ic1">📋</div><span class="stat-trend trend-up">LIVE</span></div>
@@ -235,21 +218,18 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
       </div>
     </div>
 
-    <!-- Two Column -->
     <div class="two-col">
-
-      <!-- Recent Reservations -->
       <div class="panel">
         <div class="panel-head">
           <div class="panel-title"><div class="panel-icon">📋</div> Recent Reservations</div>
-          <a href="adminViewReservation.jsp" class="view-all">View All →</a>
+          <a href="AdminViewReservation" class="view-all">View All →</a>
         </div>
         <table class="mini-table">
           <thead><tr><th>Res. No</th><th>Guest</th><th>Room</th><th>Check-In</th><th>Check-Out</th></tr></thead>
           <tbody>
             <% if (recentRes.isEmpty()) { %>
             <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--dim);">
-              No reservations yet. <a href="adminViewReservation.jsp" style="color:var(--gold);">Add one →</a>
+              No reservations yet. <a href="AdminViewReservation" style="color:var(--gold);">Add one →</a>
             </td></tr>
             <% } else { for (String[] r : recentRes) { %>
             <tr>
@@ -264,7 +244,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
         </table>
       </div>
 
-      <!-- Quick Actions -->
       <div class="panel">
         <div class="panel-head">
           <div class="panel-title"><div class="panel-icon">⚡</div> Quick Actions</div>
@@ -285,12 +264,12 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
             <div class="qa-text"><div class="qa-label">Bill Calculator</div><div class="qa-desc">Generate guest invoices</div></div>
             <span class="qa-arrow">›</span>
           </a>
-          <a href="staff.jsp" class="qa-item">
+          <a href="Staff" class="qa-item">
             <div class="qa-icon">🪪</div>
             <div class="qa-text"><div class="qa-label">Staff Dashboard</div><div class="qa-desc">Switch to staff view</div></div>
             <span class="qa-arrow">›</span>
           </a>
-          <a href="adminReports.jsp" class="qa-item">
+          <a href="AdminReports" class="qa-item">
             <div class="qa-icon">📈</div>
             <div class="qa-text"><div class="qa-label">Reports &amp; Analytics</div><div class="qa-desc">Revenue &amp; occupancy data</div></div>
             <span class="qa-arrow">›</span>
@@ -299,7 +278,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
       </div>
     </div>
 
-    <!-- Status Section -->
     <div class="status-section">
       <div class="status-card">
         <div class="sc-title">📡 Live System Status</div>
@@ -314,20 +292,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
           <div class="sc-item"><span class="sc-dot dg"></span><span class="sc-label">Guest Accounts</span><span class="sc-val"><%= totalUsers %></span></div>
         </div>
       </div>
-      <div class="status-card">
-        <div class="sc-title">📊 Occupancy Overview</div>
-        <div class="occ-label"><span>Room Occupancy</span><strong>75%</strong></div>
-        <div class="occ-bar"><div class="occ-fill" id="occFill" style="width:0%"></div></div>
-        <div class="sc-items" style="margin-top:16px;">
-          <div class="sc-item"><span class="sc-dot dg"></span><span class="sc-label">Rooms Occupied</span><span class="sc-val">18 / 24</span></div>
-          <div class="sc-item"><span class="sc-dot dt"></span><span class="sc-label">Available Rooms</span><span class="sc-val">6</span></div>
-          <div class="sc-item"><span class="sc-dot dr"></span><span class="sc-label">Maintenance</span><span class="sc-val">2</span></div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</div><!-- /main -->
+     
+</div>
 
 <script>
 window.addEventListener("load", function () {

@@ -215,7 +215,7 @@ select.fc option{background:#0e1521;}
     <a class="s-item" href="UserManagement"><div class="s-icon">👥</div> Users &amp; Staff</a>
     <div class="s-sec">Operations</div>
     <a class="s-item" href="calculateBill.jsp"><div class="s-icon">🧾</div> Bill Calculator</a>
-    <a class="s-item" href="adminReports.jsp"><div class="s-icon">📈</div> Reports</a>
+    <a class="s-item" href="AdminReports"><div class="s-icon">📈</div> Reports</a>
     <div class="s-sec">System</div>
     <a class="s-item" href="adminSettings.jsp"><div class="s-icon">⚙️</div> Settings</a>
   </nav>
