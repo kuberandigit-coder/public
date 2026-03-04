@@ -211,11 +211,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
         <div class="stat-num"><%= totalStaff %></div>
         <div class="stat-label">Staff Accounts</div>
       </div>
-      <div class="stat-card c4">
-        <div class="stat-top"><div class="stat-icon ic4">💰</div><span class="stat-trend trend-up">+12%</span></div>
-        <div class="stat-num">$9.4k</div>
-        <div class="stat-label">Monthly Revenue</div>
-      </div>
+
     </div>
 
     <div class="two-col">

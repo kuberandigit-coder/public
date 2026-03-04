@@ -1,787 +1,435 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-
+<%
+    String userName = (String) session.getAttribute("user");
+    if (userName == null) { response.sendRedirect("login.jsp"); return; }
+    String suc = (String) session.getAttribute("successMessage");
+    session.removeAttribute("successMessage");
+    char initial = Character.toUpperCase(userName.charAt(0));
+%>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Ocean View Resort | Dashboard</title>
-
-    <!-- ── INSTANT LOAD: DNS + connections pre-warmed ── -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
-    <link rel="dns-prefetch" href="https://images.unsplash.com">
-
-    <!-- ── PRELOAD hero bg image (highest priority, no layout shift) ── -->
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80" fetchpriority="high">
-
-    <!-- ── PRELOAD card images ── -->
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80">
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800&q=80">
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&q=80">
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80">
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1540541338287-41700207dee6?w=800&q=80">
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1504615755583-2916b52192a3?w=800&q=80">
-
-    <!-- ── Fonts: display=swap so text shows instantly with fallback ── -->
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --gold: #c9a96e;
-            --gold-light: #e8c98a;
-            --deep-navy: #050d1a;
-            --navy: #0a1628;
-            --ocean: #0d2b4e;
-            --teal: #0e7490;
-            --glass: rgba(255,255,255,0.06);
-            --glass-border: rgba(255,255,255,0.12);
-            --text-dim: rgba(255,255,255,0.55);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--deep-navy);
-            min-height: 100vh;
-            color: white;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-            overscroll-behavior: none;
-        }
-
-        /* ── HERO BACKGROUND ── */
-        .hero-bg {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            /* Separate image layer so GPU handles it independently */
-            background:
-                url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80') center/cover no-repeat;
-            /* Promote to own compositing layer — no scroll repaint */
-            will-change: transform;
-            transform: translateZ(0);
-            contain: strict;
-        }
-
-        /* Gradient overlay as separate layer — never triggers repaint */
-        .hero-bg::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, rgba(5,13,26,0.72) 0%, rgba(5,13,26,0.55) 40%, rgba(5,13,26,0.88) 100%);
-            pointer-events: none;
-        }
-
-        /* ── OVERLAY NOISE TEXTURE ── */
-        .hero-bg::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-            opacity: 0.4;
-            pointer-events: none;
-            will-change: auto;
-        }
-
-        /* ── ANIMATED WAVES ── */
-        .wave-container {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 120px;
-            z-index: 1;
-            overflow: hidden;
-            opacity: 0.18;
-            /* Own compositing layer — doesn't affect scroll paint */
-            will-change: transform;
-            transform: translateZ(0);
-            contain: layout style;
-        }
-
-        .wave {
-            position: absolute;
-            bottom: 0;
-            left: -50%;
-            width: 200%;
-            height: 80px;
-            background: linear-gradient(to right, transparent, var(--teal), transparent);
-            border-radius: 50%;
-            animation: wave 8s ease-in-out infinite;
-        }
-
-        .wave:nth-child(2) {
-            height: 60px;
-            animation: wave 12s ease-in-out infinite reverse;
-            opacity: 0.6;
-            background: linear-gradient(to right, transparent, var(--gold), transparent);
-        }
-
-        @keyframes wave {
-            0%, 100% { transform: translateX(0) translateY(0); }
-            50%       { transform: translateX(8%) translateY(-12px); }
-        }
-
-        /* ── NAVBAR ── */
-        .navbar {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            z-index: 100;
-            background: rgba(5,13,26,0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--glass-border);
-            padding: 15px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background 0.3s;
-            /* Isolate navbar paint from scroll area */
-            will-change: transform;
-            transform: translateZ(0);
-            contain: layout style;
-        }
-
-        .navbar h1 {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .navbar h1 span.wave-icon {
-            font-size: 20px;
-            animation: sway 3s ease-in-out infinite;
-            display: inline-block;
-        }
-
-        @keyframes sway {
-            0%, 100% { transform: rotate(-5deg); }
-            50%       { transform: rotate(5deg); }
-        }
-
-        .nav-gold { color: var(--gold); }
-
-        .navbar-right {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .user-badge {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            padding: 7px 16px 7px 10px;
-            border-radius: 100px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .user-avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--teal), var(--gold));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .navbar a {
-            color: white;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 13px;
-            transition: 0.3s;
-        }
-
-        .navbar a:hover { color: var(--gold-light); }
-
-        .logout-btn {
-            background: rgba(255, 59, 48, 0.2);
-            border: 1px solid rgba(255, 59, 48, 0.4);
-            padding: 7px 16px;
-            border-radius: 100px;
-            font-size: 13px;
-            transition: all 0.3s;
-        }
-
-        .logout-btn:hover {
-            background: rgba(255, 59, 48, 0.4) !important;
-            color: #ff6b6b !important;
-        }
-
-        /* ── MAIN CONTAINER ── */
-        .container {
-            position: relative;
-            z-index: 10;
-            padding: 140px 40px 80px;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        /* ── SUCCESS / MSG BANNERS ── */
-        .success-message {
-            background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.15));
-            color: #6ee7b7;
-            border: 1px solid rgba(16,185,129,0.35);
-            padding: 14px 20px;
-            margin-bottom: 30px;
-            border-radius: 12px;
-            text-align: center;
-            font-size: 14px;
-            backdrop-filter: blur(10px);
-            animation: fadeSlideDown 0.4s ease;
-        }
-
-        .success-box {
-            background: linear-gradient(135deg, rgba(201,169,110,0.25), rgba(201,169,110,0.1));
-            color: var(--gold-light);
-            border: 1px solid rgba(201,169,110,0.35);
-            padding: 14px 20px;
-            margin-bottom: 30px;
-            border-radius: 12px;
-            text-align: center;
-            font-size: 14px;
-            backdrop-filter: blur(10px);
-        }
-
-        @keyframes fadeSlideDown {
-            from { opacity: 0; transform: translateY(-12px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ── WELCOME HERO SECTION ── */
-        .welcome {
-            margin-bottom: 60px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .welcome-left { max-width: 600px; }
-
-        .welcome-eyebrow {
-            font-size: 11px;
-            font-weight: 500;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--gold);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .welcome-eyebrow::before {
-            content: '';
-            width: 30px;
-            height: 1px;
-            background: var(--gold);
-        }
-
-        .welcome h2 {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 52px;
-            font-weight: 300;
-            line-height: 1.1;
-            letter-spacing: -0.01em;
-            margin-bottom: 16px;
-        }
-
-        .welcome h2 em {
-            font-style: italic;
-            color: var(--gold-light);
-        }
-
-        .welcome p {
-            font-size: 15px;
-            color: var(--text-dim);
-            max-width: 420px;
-            line-height: 1.7;
-        }
-
-        /* STAT PILLS */
-        .stat-pills {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .stat-pill {
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            padding: 12px 20px;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            text-align: center;
-            min-width: 100px;
-        }
-
-        .stat-pill .num {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--gold-light);
-            line-height: 1;
-        }
-
-        .stat-pill .label {
-            font-size: 10px;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: var(--text-dim);
-            margin-top: 4px;
-        }
-
-        /* ── SECTION DIVIDER ── */
-        .section-label {
-            font-size: 10px;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--text-dim);
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .section-label::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--glass-border);
-        }
-
-        /* ── CARDS GRID ── */
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-        }
-
-        /* FEATURED CARD (first) */
-        .cards > .card:first-child {
-            grid-column: span 1;
-            grid-row: span 2;
-        }
-
-        .card {
-            position: relative;
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
-                        border-color 0.3s, box-shadow 0.4s;
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            /* Removed backdrop-filter — major scroll perf killer on many cards */
-            contain: layout style;
-            transform: translateZ(0);
-        }
-
-        .card:hover {
-            transform: translateY(-6px);
-            border-color: rgba(201,169,110,0.4);
-            box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,169,110,0.15);
-        }
-
-        /* Card image backgrounds */
-        .card-img {
-            position: absolute;
-            inset: 0;
-            background-size: cover;
-            background-position: center;
-            transition: transform 0.6s ease;
-            z-index: 0;
-            /* Pre-promoted to GPU layer — zoom is instant, no jank */
-            will-change: transform;
-            transform: translateZ(0);
-        }
-
-        .card:hover .card-img { transform: scale(1.06); }
-
-        /* Image overlay gradient */
-        .card::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to top, rgba(5,13,26,0.92) 0%, rgba(5,13,26,0.4) 50%, rgba(5,13,26,0.15) 100%);
-            z-index: 1;
-            transition: opacity 0.3s;
-        }
-
-        .card:hover::before {
-            background: linear-gradient(to top, rgba(5,13,26,0.96) 0%, rgba(5,13,26,0.55) 60%, rgba(5,13,26,0.2) 100%);
-        }
-
-        .card-content {
-            position: relative;
-            z-index: 2;
-            padding: 28px;
-        }
-
-        .card-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, rgba(201,169,110,0.3), rgba(201,169,110,0.1));
-            border: 1px solid rgba(201,169,110,0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            margin-bottom: 14px;
-            transition: all 0.3s;
-        }
-
-        .card:hover .card-icon {
-            background: linear-gradient(135deg, rgba(201,169,110,0.5), rgba(201,169,110,0.2));
-            transform: scale(1.1);
-        }
-
-        .card h3 {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: 0.01em;
-        }
-
-        .card p {
-            font-size: 13px;
-            color: var(--text-dim);
-            line-height: 1.6;
-            max-width: 280px;
-        }
-
-        .card-arrow {
-            position: absolute;
-            right: 24px;
-            bottom: 24px;
-            z-index: 2;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 1px solid var(--glass-border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            transition: all 0.3s;
-            background: var(--glass);
-        }
-
-        .card:hover .card-arrow {
-            background: var(--gold);
-            border-color: var(--gold);
-            transform: translate(3px, -3px);
-        }
-
-        /* Featured card tall */
-        .card:first-child { min-height: 440px; }
-        .card:first-child h3 { font-size: 30px; }
-        .card:first-child p  { font-size: 14px; }
-
-        /* ── FOOTER ── */
-        .footer {
-            text-align: center;
-            margin-top: 70px;
-            font-size: 12px;
-            color: var(--text-dim);
-            letter-spacing: 0.08em;
-            position: relative;
-            z-index: 10;
-        }
-
-        .footer::before {
-            content: '';
-            display: block;
-            width: 60px;
-            height: 1px;
-            background: var(--gold);
-            margin: 0 auto 16px;
-        }
-
-        /* ── FLOATING PARTICLES ── */
-        .particles {
-            position: fixed;
-            inset: 0;
-            z-index: 2;
-            pointer-events: none;
-            overflow: hidden;
-            will-change: transform;
-            transform: translateZ(0);
-            contain: strict;
-        }
-
-        .particle {
-            position: absolute;
-            width: 2px;
-            height: 2px;
-            border-radius: 50%;
-            background: var(--gold-light);
-            opacity: 0;
-            animation: floatUp var(--dur, 15s) linear var(--delay, 0s) infinite;
-            left: var(--x, 50%);
-            bottom: -10px;
-        }
-
-        @keyframes floatUp {
-            0%   { opacity: 0;   transform: translateY(0)   translateX(0); }
-            10%  { opacity: 0.4; }
-            90%  { opacity: 0.2; }
-            100% { opacity: 0;   transform: translateY(-100vh) translateX(20px); }
-        }
-
-        /* ── PAGE ENTRY — content fades in after paint, hides any asset flash ── */
-        @keyframes pageIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .container {
-            animation: pageIn 0.5s ease both;
-        }
-
-        .navbar {
-            animation: pageIn 0.4s ease both;
-        }
-
-        /* ── RESPONSIVE ── */
-        @media (max-width: 900px) {
-            .cards { grid-template-columns: 1fr 1fr; }
-            .cards > .card:first-child { grid-column: span 2; grid-row: span 1; min-height: 280px; }
-            .welcome h2 { font-size: 36px; }
-        }
-
-        @media (max-width: 600px) {
-            .cards { grid-template-columns: 1fr; }
-            .cards > .card:first-child { grid-column: span 1; }
-            .navbar { padding: 12px 20px; }
-            .container { padding: 120px 20px 60px; }
-            .welcome h2 { font-size: 30px; }
-            .navbar h1 { font-size: 18px; }
-        }
-    </style>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ocean View Resort — Guest Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --cream:#faf7f2;--cream2:#f4f0e8;--cream3:#ede7d9;
+  --white:#ffffff;--offwhite:#fdfcfa;
+  --navy:#0f1f3d;--navy2:#162847;--navy3:#1e3556;
+  --gold:#b8923a;--gold2:#d4a853;--gold3:#e8c878;--gold-lt:#f5e9cc;
+  --teal:#0b5c6b;--teal2:#0e7a8a;
+  --text:#1a1a2e;--text2:#3d3d52;--text3:#6b6b80;--text4:#9b9bae;
+  --border:#e8e0d0;--border2:#d8cdb8;
+  --shadow:rgba(15,31,61,0.08);--shadow2:rgba(15,31,61,0.15);
+  --r:16px;--rs:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+a{text-decoration:none;color:inherit;}
+
+/* ── TEXTURE OVERLAY ───────────────────────── */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:.5;}
+
+/* ── NAVBAR ────────────────────────────────── */
+.navbar{position:fixed;top:0;width:100%;z-index:300;height:68px;
+  background:rgba(250,247,242,.92);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 52px;
+  transition:box-shadow .3s;}
+.navbar.scrolled{box-shadow:0 2px 20px var(--shadow);}
+.nav-brand{display:flex;align-items:center;gap:12px;flex:1;}
+.nav-logo{width:38px;height:38px;border-radius:50%;
+  background:linear-gradient(135deg,var(--navy),var(--teal));
+  display:flex;align-items:center;justify-content:center;font-size:18px;}
+.nav-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;
+  color:var(--navy);letter-spacing:.04em;}
+.nav-name em{color:var(--gold);font-style:italic;}
+.nav-loc{font-size:10px;color:var(--text3);letter-spacing:.18em;text-transform:uppercase;margin-top:1px;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.user-pill{display:flex;align-items:center;gap:9px;padding:6px 16px 6px 6px;
+  background:var(--cream2);border:1px solid var(--border2);border-radius:100px;}
+.u-av{width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,var(--teal),var(--gold2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;}
+.u-name{font-size:13px;font-weight:500;color:var(--text2);}
+.btn-profile{display:flex;align-items:center;gap:7px;padding:8px 18px;
+  border-radius:100px;background:var(--gold-lt);
+  border:1.5px solid rgba(184,146,58,.35);color:var(--gold);
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .2s;font-family:inherit;}
+.btn-profile:hover{background:var(--gold);color:#fff;border-color:var(--gold);}
+.btn-logout{padding:8px 20px;border-radius:100px;
+  background:transparent;border:1.5px solid var(--border2);
+  color:var(--text3);font-size:12px;font-weight:500;cursor:pointer;
+  transition:all .2s;font-family:inherit;}
+.btn-logout:hover{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+/* ── HERO BANNER ───────────────────────────── */
+.hero-banner{position:relative;margin-top:68px;overflow:hidden;
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 45%,var(--teal) 100%);
+  padding:80px 52px 70px;}
+.hero-banner::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 70% 80% at 80% 50%, rgba(184,146,58,.18) 0%,transparent 70%);}
+.hero-banner::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,transparent 0%,var(--gold) 30%,var(--gold2) 70%,transparent 100%);}
+/* Decorative circles */
+.hero-deco{position:absolute;border-radius:50%;border:1px solid rgba(255,255,255,.06);}
+.hd1{width:400px;height:400px;top:-120px;right:-80px;}
+.hd2{width:240px;height:240px;bottom:-80px;right:200px;border-color:rgba(184,146,58,.15);}
+.hd3{width:140px;height:140px;top:30px;right:160px;border-color:rgba(255,255,255,.09);}
+.hero-content{position:relative;z-index:2;max-width:1100px;margin:0 auto;
+  display:grid;grid-template-columns:1fr auto;align-items:center;gap:40px;}
+.hero-eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.hero-eyebrow-line{width:32px;height:1px;background:var(--gold2);}
+.hero-eyebrow-text{font-size:10px;font-weight:500;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--gold3);}
+.hero-h1{font-family:'Cormorant Garamond',serif;
+  font-size:clamp(36px,4vw,58px);font-weight:400;line-height:1.1;
+  color:#fff;letter-spacing:-.01em;margin-bottom:16px;}
+.hero-h1 em{font-style:italic;color:var(--gold3);}
+.hero-sub{font-size:15px;color:rgba(255,255,255,.65);line-height:1.75;max-width:440px;}
+.hero-guest-card{background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);border-radius:20px;
+  padding:28px 32px;text-align:center;min-width:200px;
+  backdrop-filter:blur(10px);}
+.hgc-label{font-size:9px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--gold3);margin-bottom:14px;}
+.hgc-av{width:60px;height:60px;border-radius:50%;margin:0 auto 12px;
+  background:linear-gradient(135deg,var(--teal2),var(--gold));
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:700;color:#fff;
+  border:3px solid rgba(255,255,255,.15);}
+.hgc-name{font-family:'Cormorant Garamond',serif;font-size:20px;
+  font-weight:600;color:#fff;letter-spacing:.02em;}
+.hgc-tag{display:inline-block;margin-top:8px;padding:4px 14px;border-radius:100px;
+  background:rgba(184,146,58,.25);border:1px solid rgba(184,146,58,.4);
+  font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--gold3);}
+
+/* ── PAGE CONTENT ──────────────────────────── */
+.content{max-width:1200px;margin:0 auto;padding:52px 52px 60px;
+  display:flex;flex-direction:column;gap:52px;
+  animation:fadeUp .5s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;}}
+
+/* ── TOAST ─────────────────────────────────── */
+.toast{padding:14px 22px;border-radius:var(--rs);font-size:14px;font-weight:500;
+  background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 2px 12px rgba(22,101,52,.1);}
+
+/* ── SECTION HEADER ────────────────────────── */
+.sec-hd{display:flex;align-items:baseline;gap:16px;margin-bottom:24px;}
+.sec-hd h2{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;
+  color:var(--navy);letter-spacing:-.01em;}
+.sec-hd h2 em{font-style:italic;color:var(--teal);}
+.sec-hd-line{flex:1;height:1px;background:var(--border);margin-bottom:4px;}
+.sec-hd-note{font-size:12px;color:var(--text4);white-space:nowrap;}
+
+/* ── RATE STRIP ────────────────────────────── */
+.rate-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;
+  background:var(--border);border:1px solid var(--border);
+  border-radius:var(--rs);overflow:hidden;}
+.rs-item{background:var(--white);padding:16px 18px;text-align:center;transition:background .2s;}
+.rs-item:hover{background:var(--cream2);}
+.rs-ico{font-size:20px;margin-bottom:6px;}
+.rs-room{font-size:11px;font-weight:600;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;}
+.rs-price{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--navy);}
+.rs-price span{font-size:11px;color:var(--text4);font-weight:400;}
+
+/* ── ACTION CARDS ──────────────────────────── */
+.cards-grid{display:grid;grid-template-columns:1.55fr 1fr 1fr;gap:20px;}
+.card{background:var(--white);border:1px solid var(--border);border-radius:20px;
+  overflow:hidden;cursor:pointer;transition:all .3s cubic-bezier(.25,.46,.45,.94);
+  animation:cardIn .5s ease both;box-shadow:0 2px 8px var(--shadow);}
+.card:nth-child(1){animation-delay:.05s;}
+.card:nth-child(2){animation-delay:.10s;}
+.card:nth-child(3){animation-delay:.15s;}
+.card:nth-child(4){animation-delay:.20s;}
+.card:nth-child(5){animation-delay:.25s;}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+.card:hover{transform:translateY(-5px);box-shadow:0 16px 48px var(--shadow2);border-color:var(--border2);}
+
+/* top color bar */
+.card-bar{height:4px;width:100%;}
+
+.card-body{padding:28px 28px 20px;}
+.card-ico{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;
+  justify-content:center;font-size:22px;margin-bottom:20px;transition:transform .3s;}
+.card:hover .card-ico{transform:scale(1.08);}
+.card h3{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;
+  color:var(--navy);margin-bottom:9px;letter-spacing:.01em;line-height:1.2;}
+.card p{font-size:13.5px;color:var(--text3);line-height:1.7;}
+.card-foot{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 28px;border-top:1px solid var(--border);margin-top:8px;}
+.card-tag{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--text4);}
+.card-btn{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+  padding:8px 16px;border-radius:100px;transition:all .25s;border:1.5px solid var(--border2);
+  color:var(--text2);}
+.card:hover .card-btn{color:#fff;border-color:transparent;}
+
+/* Featured */
+.card-featured{grid-row:span 2;}
+.card-featured h3{font-size:28px;}
+.card-featured p{font-size:14.5px;}
+.card-featured .card-body{padding:34px 32px 24px;}
+.card-featured .card-ico{width:60px;height:60px;font-size:26px;margin-bottom:22px;}
+
+/* Color themes */
+.c-navy .card-bar{background:linear-gradient(90deg,var(--navy),var(--navy3));}
+.c-navy .card-ico{background:#eef2f8;border:1.5px solid #d0d9ec;}
+.c-navy .card:hover,.c-navy.card:hover .card-btn{background:var(--navy);}
+.c-navy.card:hover .card-btn{background:var(--navy);}
+
+.c-teal .card-bar{background:linear-gradient(90deg,var(--teal),var(--teal2));}
+.c-teal .card-ico{background:#e8f5f7;border:1.5px solid #b8dce2;}
+
+.c-gold .card-bar{background:linear-gradient(90deg,var(--gold),var(--gold2));}
+.c-gold .card-ico{background:var(--gold-lt);border:1.5px solid #e8d0a0;}
+
+.c-green .card-bar{background:linear-gradient(90deg,#0d7a5c,#10a37f);}
+.c-green .card-ico{background:#e8f8f3;border:1.5px solid #a8e4d0;}
+
+.c-rose .card-bar{background:linear-gradient(90deg,#9b2c2c,#c0392b);}
+.c-rose .card-ico{background:#fef2f2;border:1.5px solid #fecaca;}
+
+/* Hover button tint per card */
+.c-teal.card:hover .card-btn{background:var(--teal);color:#fff;border-color:var(--teal);}
+.c-gold.card:hover .card-btn{background:var(--gold);color:#fff;border-color:var(--gold);}
+.c-green.card:hover .card-btn{background:#0d7a5c;color:#fff;border-color:#0d7a5c;}
+.c-rose.card:hover .card-btn{background:#9b2c2c;color:#fff;border-color:#9b2c2c;}
+.c-navy.card:hover .card-btn{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+/* ── BOTTOM INFO ROW ───────────────────────── */
+.info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+.ir-card{background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);padding:24px 28px;
+  box-shadow:0 2px 8px var(--shadow);}
+.ir-card-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.ir-card-ico{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:16px;}
+.ir-card h4{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  color:var(--navy);letter-spacing:.01em;}
+.ir-row{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.ir-row:last-child{border-bottom:none;}
+.ir-label{color:var(--text3);}
+.ir-value{font-family:'DM Mono',monospace;font-weight:500;color:var(--navy);}
+
+/* ── FOOTER ────────────────────────────────── */
+.footer{text-align:center;padding:20px 0 32px;}
+.footer-div{display:flex;align-items:center;gap:16px;margin-bottom:14px;}
+.footer-div::before,.footer-div::after{content:'';flex:1;height:1px;background:var(--border);}
+.footer-icon{color:var(--gold);font-size:16px;}
+.footer-text{font-size:11px;color:var(--text4);letter-spacing:.12em;}
+
+/* ── RESPONSIVE ────────────────────────────── */
+@media(max-width:1000px){.cards-grid{grid-template-columns:1fr 1fr;}.card-featured{grid-row:auto;}.info-row{grid-template-columns:1fr;}}
+@media(max-width:700px){.content{padding:32px 20px 40px;}.hero-content{grid-template-columns:1fr;}.hero-guest-card{display:none;}.navbar{padding:0 18px;}.hero-banner{padding:60px 20px 50px;}.cards-grid{grid-template-columns:1fr;}.rate-strip{grid-template-columns:1fr 1fr;}}
+</style>
 </head>
 <body>
 
-    <!-- Background -->
-    <div class="hero-bg"></div>
+<!-- NAVBAR -->
+<nav class="navbar" id="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">🌊</div>
+    <div>
+      <div class="nav-name">Ocean <em>View</em> Resort</div>
+      <div class="nav-loc">Galle, Sri Lanka</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="user-pill">
+      <div class="u-av"><%= initial %></div>
+      <span class="u-name"><strong><%= userName %></strong></span>
+    </div>
+    <button class="btn-profile" onclick="location.href='UserProfile'">👤 My Profile</button>
+    <button class="btn-logout" onclick="location.href='logout'">↩ Sign Out</button>
+  </div>
+</nav>
 
-    <!-- Waves -->
-    <div class="wave-container">
-        <div class="wave"></div>
-        <div class="wave"></div>
+<!-- HERO BANNER -->
+<div class="hero-banner">
+  <div class="hero-deco hd1"></div>
+  <div class="hero-deco hd2"></div>
+  <div class="hero-deco hd3"></div>
+  <div class="hero-content">
+    <div>
+      <div class="hero-eyebrow">
+        <div class="hero-eyebrow-line"></div>
+        <div class="hero-eyebrow-text">Guest Portal &nbsp;·&nbsp; Ocean View Resort</div>
+      </div>
+      <h1 class="hero-h1">
+        Your Perfect<br>Stay <em>Awaits</em>
+      </h1>
+      <p class="hero-sub">Manage your booking, review your bill, and enjoy every moment of your stay with our seamless guest portal.</p>
+    </div>
+    <div class="hero-guest-card">
+      <div class="hgc-label">Welcome Back</div>
+      <div class="hgc-av"><%= initial %></div>
+      <div class="hgc-name"><%= userName %></div>
+      <div class="hgc-tag">✦ Valued Guest</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- Toast -->
+  <% if (suc != null) { %>
+  <div class="toast" id="toastMsg">✅ &nbsp;<%= suc %></div>
+  <script>setTimeout(function(){var e=document.getElementById("toastMsg");if(e){e.style.transition='opacity .5s';e.style.opacity='0';setTimeout(function(){e.remove();},500);}},4500);</script>
+  <% } %>
+
+  <!-- Rate Strip -->
+  <div class="rate-strip">
+    <div class="rs-item"><div class="rs-ico">🛏️</div><div class="rs-room">Standard</div><div class="rs-price">$80 <span>/ night</span></div></div>
+    <div class="rs-item"><div class="rs-ico">✨</div><div class="rs-room">Deluxe</div><div class="rs-price">$150 <span>/ night</span></div></div>
+    <div class="rs-item"><div class="rs-ico">👨‍👩‍👧</div><div class="rs-room">Family</div><div class="rs-price">$180 <span>/ night</span></div></div>
+    <div class="rs-item"><div class="rs-ico">🌊</div><div class="rs-room">Ocean View</div><div class="rs-price">$220 <span>/ night</span></div></div>
+    <div class="rs-item"><div class="rs-ico">👑</div><div class="rs-room">Suite</div><div class="rs-price">$250 <span>/ night</span></div></div>
+  </div>
+
+  <!-- Section heading -->
+  <div class="sec-hd">
+    <h2>What would you like to <em>do today?</em></h2>
+    <div class="sec-hd-line"></div>
+    <div class="sec-hd-note">5 services available</div>
+  </div>
+
+  <!-- CARDS -->
+  <div class="cards-grid">
+
+    <!-- Featured: Add Reservation -->
+    <div class="card card-featured c-navy" onclick="location.href='addReservation.jsp'">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="card-ico">🛎️</div>
+        <h3>Make a New Reservation</h3>
+        <p>Book your ideal room with full guest details, preferred room type, and custom check-in/check-out dates. Confirmation is instant.</p>
+      </div>
+      <div class="card-foot">
+        <span class="card-tag">Booking</span>
+        <div class="card-btn">Book Now →</div>
+      </div>
     </div>
 
-    <!-- Floating Particles -->
-    <div class="particles" id="particles"></div>
-
-    <!-- ── NAVBAR ── -->
-    <div class="navbar">
-        <h1>
-            <span class="wave-icon">🌊</span>
-            Ocean<span class="nav-gold">&nbsp;View</span>&nbsp;Resort
-        </h1>
-        <div class="navbar-right">
-            <div class="user-badge">
-                <div class="user-avatar" id="avatarInitial">?</div>
-                <span>Welcome, <strong><%= session.getAttribute("user") %></strong></span>
-            </div>
-            <a href="logout" class="logout-btn">↩ Logout</a>
-        </div>
+    <!-- View Reservation -->
+    <div class="card c-teal" onclick="location.href='viewReservation.jsp'">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="card-ico">🔍</div>
+        <h3>View Reservation</h3>
+        <p>Look up your existing booking using your reservation number and review all details.</p>
+      </div>
+      <div class="card-foot">
+        <span class="card-tag">My Booking</span>
+        <div class="card-btn">View →</div>
+      </div>
     </div>
 
-    <!-- ── MAIN CONTAINER ── -->
-    <div class="container">
-
-        <!-- SUCCESS MESSAGE (session-based) -->
-        <% 
-            String success = (String) session.getAttribute("successMessage");
-            if (success != null) { 
-        %>
-            <div class="success-message" id="successBox">
-                ✓ &nbsp;<%= success %>
-            </div>
-            <script>
-                setTimeout(function() {
-                    var box = document.getElementById("successBox");
-                    if (box) { box.style.display = "none"; }
-                }, 5000);
-            </script>
-        <% 
-                session.removeAttribute("successMessage");
-            } 
-        %>
-
-        <!-- SUCCESS MESSAGE (query param) -->
-        <%
-        String message = request.getParameter("msg");
-        if (message != null) {
-        %>
-        <div class="success-box">
-            ✦ &nbsp;<%= message %>
-        </div>
-        <%
-        }
-        %>
-
-        <!-- ── WELCOME ── -->
-        <div class="welcome">
-            <div class="welcome-left">
-                <div class="welcome-eyebrow">Reservation Management System</div>
-                <h2>Where <em>Luxury</em><br>Meets the Sea</h2>
-                <p>Manage bookings, guests, and billing with elegance and precision from your central command center.</p>
-            </div>
-            <div class="stat-pills">
-                <div class="stat-pill">
-                    <div class="num">24</div>
-                    <div class="label">Suites</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="num">98%</div>
-                    <div class="label">Satisfaction</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="num">5★</div>
-                    <div class="label">Rating</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── CARDS ── -->
-        <div class="section-label">Quick Actions</div>
-
-        <div class="cards">
-
-            <!-- 1. Add Reservation (FEATURED) -->
-            <div class="card" onclick="location.href='addReservation.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">🛎️</div>
-                    <h3>Add New Reservation</h3>
-                    <p>Register new guest bookings into the system with full room and guest details.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
-
-            <!-- 2. View Reservation -->
-            <div class="card" onclick="location.href='viewReservation.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">🔍</div>
-                    <h3>View Reservation</h3>
-                    <p>Search and display detailed booking information.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
-
-            <!-- 3. Calculate Bill -->
-            <div class="card" onclick="location.href='calculateBill.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">🧾</div>
-                    <h3>Calculate & Print Bill</h3>
-                    <p>Generate invoices based on room type and stay duration.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
-
-
-            <!-- 5. Help -->
-            <div class="card" onclick="location.href='help.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1540541338287-41700207dee6?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">💡</div>
-                    <h3>Help Section</h3>
-                    <p>Guidelines and documentation for using the system.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
-
-            <!-- 6. Exit -->
-            <div class="card" onclick="location.href='exit.jsp'">
-                <div class="card-img" style="background-image:url('https://images.unsplash.com/photo-1504615755583-2916b52192a3?w=800&q=80')"></div>
-                <div class="card-content">
-                    <div class="card-icon">🚪</div>
-                    <h3>Exit System</h3>
-                    <p>Safely close and exit the application session.</p>
-                </div>
-                <div class="card-arrow">→</div>
-            </div>
-
-        </div>
-
-        <!-- ── FOOTER ── -->
-        <div class="footer">
-            © 2026 Ocean View Resort &nbsp;·&nbsp; Advanced Programming Project &nbsp;·&nbsp; All rights reserved
-        </div>
-
+    <!-- Calculate Bill -->
+    <div class="card c-gold" onclick="location.href='guestCalculator.jsp'">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="card-ico">🧮</div>
+        <h3>Calculate Bill</h3>
+        <p>Estimate your total stay cost including service charges and taxes before check-out.</p>
+      </div>
+      <div class="card-foot">
+        <span class="card-tag">Billing</span>
+        <div class="card-btn">Calculate →</div>
+      </div>
     </div>
 
-    <script>
-        // ── Avatar initial from username ──
-        var user = "<%= session.getAttribute("user") %>";
-        var av = document.getElementById("avatarInitial");
-        if (user && user !== "null") {
-            av.textContent = user.charAt(0).toUpperCase();
-        }
+    <!-- Print Invoice -->
+    <div class="card c-green" onclick="location.href='GuestInvoice'">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="card-ico">🖨️</div>
+        <h3>Print Invoice</h3>
+        <p>Generate and print a professional invoice for your stay. Enter your reservation number to get started.</p>
+      </div>
+      <div class="card-foot">
+        <span class="card-tag">Invoice</span>
+        <div class="card-btn">Print →</div>
+      </div>
+    </div>
 
-        // ── Floating Particles ──
-        var container = document.getElementById("particles");
-        for (var i = 0; i < 18; i++) {
-            var p = document.createElement("div");
-            p.className = "particle";
-            p.style.cssText = [
-                "--x:" + Math.random() * 100 + "%",
-                "--dur:" + (12 + Math.random() * 14) + "s",
-                "--delay:" + (Math.random() * 12) + "s"
-            ].join(";");
-            container.appendChild(p);
-        }
+    <!-- Help -->
+    <div class="card c-rose" onclick="location.href='help.jsp'">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="card-ico">💡</div>
+        <h3>Help &amp; Guide</h3>
+        <p>Step-by-step instructions for using every feature of the guest portal.</p>
+      </div>
+      <div class="card-foot">
+        <span class="card-tag">Support</span>
+        <div class="card-btn">Read →</div>
+      </div>
+    </div>
 
-        // ── Navbar scroll — rAF throttled, never blocks scroll thread ──
-        var ticking = false;
-        window.addEventListener("scroll", function() {
-            if (!ticking) {
-                requestAnimationFrame(function() {
-                    var nb = document.querySelector(".navbar");
-                    nb.style.background = window.scrollY > 50
-                        ? "rgba(5,13,26,0.97)"
-                        : "rgba(5,13,26,0.85)";
-                    ticking = false;
-                });
-                ticking = true;
-            }
-        }, { passive: true });
-    </script>
+  </div>
 
+  <!-- INFO ROW -->
+  <div class="info-row">
+
+    <div class="ir-card">
+      <div class="ir-card-head">
+        <div class="ir-card-ico" style="background:#eef2f8;">🏨</div>
+        <h4>Check-In Policy</h4>
+      </div>
+      <div class="ir-row"><span class="ir-label">Check-In Time</span><span class="ir-value">2:00 PM</span></div>
+      <div class="ir-row"><span class="ir-label">Check-Out Time</span><span class="ir-value">12:00 PM</span></div>
+      <div class="ir-row"><span class="ir-label">Early Check-In</span><span class="ir-value">On Request</span></div>
+      <div class="ir-row"><span class="ir-label">Late Check-Out</span><span class="ir-value">+$30 fee</span></div>
+    </div>
+
+    <div class="ir-card">
+      <div class="ir-card-head">
+        <div class="ir-card-ico" style="background:#e8f5f7;">💳</div>
+        <h4>Billing Summary</h4>
+      </div>
+      <div class="ir-row"><span class="ir-label">Service Charge</span><span class="ir-value">10%</span></div>
+      <div class="ir-row"><span class="ir-label">Government Tax</span><span class="ir-value">8%</span></div>
+      <div class="ir-row"><span class="ir-label">Currency</span><span class="ir-value">USD</span></div>
+      <div class="ir-row"><span class="ir-label">Discount</span><span class="ir-value">0 – 100%</span></div>
+    </div>
+
+    <div class="ir-card">
+      <div class="ir-card-head">
+        <div class="ir-card-ico" style="background:#fef9ee;">📞</div>
+        <h4>Resort Contact</h4>
+      </div>
+      <div class="ir-row"><span class="ir-label">Front Desk</span><span class="ir-value">Ext. 100</span></div>
+      <div class="ir-row"><span class="ir-label">Room Service</span><span class="ir-value">Ext. 200</span></div>
+      <div class="ir-row"><span class="ir-label">Concierge</span><span class="ir-value">Ext. 300</span></div>
+      <div class="ir-row"><span class="ir-label">Emergency</span><span class="ir-value">Ext. 911</span></div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-div"><span class="footer-icon">✦</span></div>
+    <div class="footer-text">© 2026 Ocean View Resort &nbsp;·&nbsp; Advanced Programming Project &nbsp;·&nbsp; Galle, Sri Lanka</div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+window.addEventListener('scroll',function(){
+  document.getElementById('nav').classList.toggle('scrolled',window.scrollY>20);
+},{passive:true});
+</script>
 </body>
 </html>

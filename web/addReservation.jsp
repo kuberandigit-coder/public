@@ -18,16 +18,18 @@
 
     <style>
         :root {
-            --gold: #c9a96e;
-            --gold-light: #e8c98a;
-            --deep-navy: #050d1a;
-            --teal: #0e7490;
-            --glass: rgba(255,255,255,0.06);
-            --glass-border: rgba(255,255,255,0.18);
-            --text-dim: rgba(255,255,255,0.70);
-            --input-bg: rgba(4,12,28,0.75);
-            --input-border: rgba(255,255,255,0.22);
-            --input-focus: rgba(201,169,110,0.5);
+            --gold:         #b8893e;
+            --gold-light:   #c9a050;
+            --deep-navy:    #1a2840;
+            --teal:         #0e7490;
+            --body-bg:      #f4f0ea;
+            --glass:        rgba(184,137,62,0.07);
+            --glass-border: rgba(184,137,62,0.25);
+            --text-dim:     rgba(40,50,70,0.60);
+            --input-bg:     rgba(250,246,240,0.92);
+            --input-border: rgba(180,140,70,0.30);
+            --card-bg:      rgba(255,255,255,0.94);
+            --text-main:    #1a2840;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -36,9 +38,9 @@
 
         body {
             font-family: 'DM Sans', sans-serif;
-            background: var(--deep-navy);
+            background: var(--body-bg);
             min-height: 100vh;
-            color: white;
+            color: var(--text-main);
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             overscroll-behavior: none;
@@ -59,7 +61,10 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(135deg, rgba(5,13,26,0.96) 0%, rgba(5,13,26,0.88) 50%, rgba(5,13,26,0.97) 100%);
+            background: linear-gradient(135deg,
+                rgba(244,240,234,0.96) 0%,
+                rgba(244,240,234,0.88) 50%,
+                rgba(244,240,234,0.97) 100%);
         }
 
         /* ── WAVES ── */
@@ -68,7 +73,7 @@
             bottom: 0; left: 0;
             width: 100%; height: 100px;
             z-index: 1; overflow: hidden;
-            opacity: 0.14;
+            opacity: 0.20;
             will-change: transform;
             transform: translateZ(0);
             contain: layout style;
@@ -100,7 +105,7 @@
             position: fixed;
             top: 0; width: 100%;
             z-index: 100;
-            background: rgba(5,13,26,0.85);
+            background: rgba(244,240,234,0.88);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--glass-border);
@@ -122,6 +127,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            color: var(--text-main);
         }
 
         .wave-icon {
@@ -147,13 +153,14 @@
             padding: 7px 16px;
             border-radius: 100px;
             border: 1px solid var(--glass-border);
-            background: var(--glass);
+            background: rgba(184,137,62,0.08);
             transition: all 0.3s;
         }
 
         .nav-back:hover {
-            color: var(--gold-light);
-            border-color: rgba(201,169,110,0.4);
+            color: var(--gold);
+            border-color: rgba(184,137,62,0.45);
+            background: rgba(184,137,62,0.14);
         }
 
         /* ── PAGE LAYOUT ── */
@@ -203,11 +210,12 @@
             font-weight: 300;
             line-height: 1.08;
             margin-bottom: 20px;
+            color: var(--text-main);
         }
 
         .left-panel h2 em {
             font-style: italic;
-            color: var(--gold-light);
+            color: var(--gold);
         }
 
         .left-panel p {
@@ -238,7 +246,7 @@
 
         .room-card:hover {
             transform: translateY(-3px);
-            border-color: rgba(201,169,110,0.4);
+            border-color: rgba(184,137,62,0.50);
         }
 
         .room-card img {
@@ -251,7 +259,7 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(to top, rgba(5,13,26,0.85) 0%, transparent 60%);
+            background: linear-gradient(to top, rgba(26,40,64,0.75) 0%, transparent 60%);
         }
 
         .room-card-label {
@@ -262,7 +270,7 @@
             font-weight: 600;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            color: var(--gold-light);
+            color: #fff;
         }
 
         .room-card.featured { grid-column: span 2; height: 150px; }
@@ -279,13 +287,16 @@
         .form-box {
             width: 100%;
             max-width: 460px;
-            background: rgba(4, 11, 24, 0.88);
-            border: 1px solid rgba(255,255,255,0.18);
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
             border-radius: 24px;
             padding: 40px;
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,169,110,0.1);
+            box-shadow:
+                0 8px 40px rgba(180,140,70,0.12),
+                0 2px 8px rgba(0,0,0,0.06),
+                0 0 0 1px rgba(184,137,62,0.08);
         }
 
         .form-header {
@@ -296,9 +307,9 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(201,169,110,0.15);
-            border: 1px solid rgba(201,169,110,0.3);
-            color: var(--gold-light);
+            background: rgba(184,137,62,0.10);
+            border: 1px solid rgba(184,137,62,0.28);
+            color: var(--gold);
             font-size: 11px;
             letter-spacing: 0.12em;
             text-transform: uppercase;
@@ -312,6 +323,7 @@
             font-size: 28px;
             font-weight: 600;
             margin-bottom: 6px;
+            color: var(--text-main);
         }
 
         .form-header p {
@@ -324,7 +336,7 @@
             font-size: 10px;
             letter-spacing: 0.25em;
             text-transform: uppercase;
-            color: rgba(255,255,255,0.55);
+            color: var(--text-dim);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -336,7 +348,7 @@
             content: '';
             flex: 1;
             height: 1px;
-            background: rgba(255,255,255,0.15);
+            background: rgba(180,140,70,0.20);
         }
 
         /* FIELD GROUP */
@@ -368,10 +380,10 @@
         input, select {
             width: 100%;
             padding: 11px 14px;
-            background: rgba(3, 9, 20, 0.80);
-            border: 1px solid rgba(255,255,255,0.22);
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
             border-radius: 10px;
-            color: white;
+            color: var(--text-main);
             font-family: 'DM Sans', sans-serif;
             font-size: 14px;
             outline: none;
@@ -380,16 +392,16 @@
             appearance: none;
         }
 
-        input::placeholder { color: rgba(255,255,255,0.35); }
+        input::placeholder { color: rgba(100,110,130,0.45); }
 
         input:focus, select:focus {
             border-color: var(--gold);
-            background: rgba(201,169,110,0.08);
-            box-shadow: 0 0 0 3px rgba(201,169,110,0.12);
+            background: #fffdf8;
+            box-shadow: 0 0 0 3px rgba(184,137,62,0.12);
         }
 
         input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1) opacity(0.5);
+            filter: opacity(0.45);
             cursor: pointer;
         }
 
@@ -410,8 +422,8 @@
         }
 
         select option {
-            background: #0a1628;
-            color: white;
+            background: #fff;
+            color: var(--text-main);
         }
 
         /* ROOM TYPE PILLS */
@@ -439,14 +451,14 @@
             gap: 4px;
             padding: 10px 8px;
             border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.22);
-            background: rgba(3, 9, 20, 0.80);
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
             cursor: pointer;
             text-transform: none;
             font-size: 13px;
             font-weight: 500;
             letter-spacing: 0;
-            color: rgba(255,255,255,0.75);
+            color: var(--text-dim);
             transition: all 0.25s;
         }
 
@@ -458,25 +470,25 @@
         }
 
         .room-pill input[type="radio"]:checked + label {
-            background: rgba(201,169,110,0.15);
+            background: rgba(184,137,62,0.10);
             border-color: var(--gold);
-            color: white;
-            box-shadow: 0 0 0 3px rgba(201,169,110,0.12);
+            color: var(--text-main);
+            box-shadow: 0 0 0 3px rgba(184,137,62,0.12);
         }
 
         .room-pill label:hover {
-            border-color: rgba(201,169,110,0.4);
-            color: white;
+            border-color: rgba(184,137,62,0.45);
+            color: var(--text-main);
         }
 
         /* SUBMIT BUTTON */
         button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #c9a96e, #e8c98a);
+            background: linear-gradient(135deg, #b8893e, #c9a050);
             border: none;
             border-radius: 12px;
-            color: var(--deep-navy);
+            color: #fff;
             font-family: 'DM Sans', sans-serif;
             font-size: 14px;
             font-weight: 700;
@@ -493,13 +505,13 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(135deg, #e8c98a, #fff3cc);
+            background: linear-gradient(135deg, #c9a050, #e0bc70);
             opacity: 0;
             transition: opacity 0.3s;
         }
 
         button:hover::before { opacity: 1; }
-        button:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,169,110,0.4); }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(184,137,62,0.35); }
         button:active { transform: translateY(0); }
 
         button span { position: relative; z-index: 1; }
