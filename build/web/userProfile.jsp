@@ -11,6 +11,7 @@
     String dbErr      = (String)  request.getAttribute("dbErr");
     String pwOk       = (String)  request.getAttribute("pwOk");
     String pwErr      = (String)  request.getAttribute("pwErr");
+    String delErr     = (String)  request.getAttribute("delErr");
 
     if (profUser == null) profUser = userName;
     if (profRole == null) profRole = "user";
@@ -137,9 +138,11 @@ a{text-decoration:none;color:inherit;}
 .ph-ico{width:40px;height:40px;border-radius:10px;
   display:flex;align-items:center;justify-content:center;font-size:18px;
   background:var(--cream3);border:1px solid var(--border2);}
+.ph-ico.danger{background:#fff0f0;border-color:#fecaca;}
 .ph-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;
   color:var(--navy);letter-spacing:.01em;}
 .ph-title em{font-style:italic;color:var(--teal);}
+.ph-title.red em{color:var(--red);}
 .ph-sub{font-size:12px;color:var(--text3);margin-top:2px;}
 .panel-body{padding:24px 28px;}
 
@@ -174,6 +177,7 @@ a{text-decoration:none;color:inherit;}
   transition:border-color .2s,box-shadow .2s;font-family:inherit;}
 .fc:hover{border-color:var(--border2);}
 .fc:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(11,92,107,.1);}
+.fc.red:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.1);}
 .fc::placeholder{color:var(--text4);}
 .fc.valid{border-color:var(--green);}
 .fc.bad{border-color:var(--red);}
@@ -185,13 +189,12 @@ a{text-decoration:none;color:inherit;}
 .match-hint{font-size:11px;margin-top:5px;}
 
 /* Divider */
-.form-div{height:1px;background:var(--border);margin:20px 0;}
 .form-div-label{font-size:10px;font-weight:700;letter-spacing:.2em;
   text-transform:uppercase;color:var(--text4);
   display:flex;align-items:center;gap:10px;margin:20px 0 16px;}
 .form-div-label::after{content:'';flex:1;height:1px;background:var(--border);}
 
-/* Button */
+/* Buttons */
 .btn-save{display:flex;align-items:center;justify-content:center;gap:10px;
   padding:13px 28px;border-radius:var(--rs);
   background:linear-gradient(135deg,var(--navy),var(--navy2));
@@ -199,6 +202,29 @@ a{text-decoration:none;color:inherit;}
   font-family:inherit;transition:all .22s;box-shadow:0 3px 14px var(--shadow);
   margin-top:20px;width:100%;}
 .btn-save:hover{transform:translateY(-2px);box-shadow:0 8px 24px var(--shadow2);}
+.btn-delete{background:linear-gradient(135deg,#c0392b,#96281b);}
+.btn-delete:hover{box-shadow:0 8px 24px rgba(192,57,43,.35);}
+
+/* Delete warning box */
+.del-warning{background:#fff5f5;border:1.5px solid #fecaca;
+  border-radius:var(--rs);padding:16px 20px;margin-bottom:22px;}
+.dw-title{font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px;}
+.dw-body{font-size:12.5px;color:#7f1d1d;line-height:1.7;}
+.dw-body ul{margin:6px 0 0 18px;}
+.dw-body li{margin-bottom:2px;}
+
+/* ── QUICK LINKS ─────────────────────────── */
+.quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.ql{background:var(--white);border:1px solid var(--border);border-radius:var(--rs);
+  padding:16px 20px;display:flex;align-items:center;gap:12px;
+  transition:all .2s;box-shadow:0 2px 8px var(--shadow);}
+.ql:hover{border-color:var(--border2);transform:translateY(-2px);}
+.ql-ico{font-size:20px;}
+.ql-title{font-size:13px;font-weight:600;color:var(--navy);}
+.ql-sub{font-size:11px;color:var(--text4);}
+.ql-red{border-color:#fecaca;}
+.ql-red:hover{background:#fef2f2;}
+.ql-red .ql-title{color:var(--red);}
 
 /* ── RESPONSIVE ────────────────────────────── */
 @media(max-width:800px){
@@ -209,6 +235,7 @@ a{text-decoration:none;color:inherit;}
   .hero-stats{display:none;}
   .info-grid{grid-template-columns:1fr;}
   .info-item.full{grid-column:auto;}
+  .quick-grid{grid-template-columns:1fr;}
 }
 </style>
 </head>
@@ -276,6 +303,11 @@ a{text-decoration:none;color:inherit;}
   <div class="toast-err">⚠️ <%= pwErr %></div>
   <% } %>
 
+  <!-- Delete error -->
+  <% if (delErr != null) { %>
+  <div class="toast-err">⚠️ <%= delErr %></div>
+  <% } %>
+
   <!-- ── ACCOUNT DETAILS PANEL ──────────────── -->
   <div class="panel">
     <div class="panel-head">
@@ -337,6 +369,7 @@ a{text-decoration:none;color:inherit;}
     </div>
     <div class="panel-body">
       <form method="POST" action="UserProfile" onsubmit="return validatePw()">
+        <input type="hidden" name="action" value="changePassword"/>
 
         <div class="fg">
           <label>Current Password</label>
@@ -375,42 +408,63 @@ a{text-decoration:none;color:inherit;}
     </div>
   </div>
 
+  <!-- ── DELETE ACCOUNT PANEL ──────────────── -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="ph-ico danger">🗑️</div>
+      <div>
+        <div class="ph-title red">Delete <em>Account</em></div>
+        <div class="ph-sub">Permanently remove your account and all associated data</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="del-warning">
+        <div class="dw-title">⚠️ This action cannot be undone</div>
+        <div class="dw-body">
+          Deleting your account will permanently remove:
+          <ul>
+            <li>Your login credentials</li>
+            <li>All your reservations (<strong><%= totalRes %></strong> booking<%= totalRes != 1 ? "s" : "" %>)</li>
+            <li>All your profile information</li>
+          </ul>
+        </div>
+      </div>
+      <form method="POST" action="UserProfile" onsubmit="return confirmDel()">
+        <input type="hidden" name="action" value="deleteAccount"/>
+        <div class="fg">
+          <label>Type DELETE to confirm</label>
+          <div class="fc-wrap">
+            <span class="fc-ico">⌨️</span>
+            <input class="fc red" type="text" name="confirmDelete" id="delInput"
+                   placeholder='Type "DELETE" in capitals' autocomplete="off"/>
+          </div>
+        </div>
+        <button type="submit" class="btn-save btn-delete">🗑️ Permanently Delete My Account</button>
+      </form>
+    </div>
+  </div>
+
   <!-- ── QUICK LINKS ────────────────────────── -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
-    <a href="viewReservation.jsp"
-       style="background:var(--white);border:1px solid var(--border);border-radius:var(--rs);
-              padding:16px 20px;display:flex;align-items:center;gap:12px;
-              transition:all .2s;box-shadow:0 2px 8px var(--shadow);"
-       onmouseover="this.style.borderColor='var(--border2)';this.style.transform='translateY(-2px)'"
-       onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
-      <span style="font-size:20px;">📋</span>
+  <div class="quick-grid">
+    <a href="viewReservation.jsp" class="ql">
+      <span class="ql-ico">📋</span>
       <div>
-        <div style="font-size:13px;font-weight:600;color:var(--navy);">View Reservation</div>
-        <div style="font-size:11px;color:var(--text4);">Check your booking</div>
+        <div class="ql-title">View Reservation</div>
+        <div class="ql-sub">Check your booking</div>
       </div>
     </a>
-    <a href="GuestInvoice"
-       style="background:var(--white);border:1px solid var(--border);border-radius:var(--rs);
-              padding:16px 20px;display:flex;align-items:center;gap:12px;
-              transition:all .2s;box-shadow:0 2px 8px var(--shadow);"
-       onmouseover="this.style.borderColor='var(--border2)';this.style.transform='translateY(-2px)'"
-       onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
-      <span style="font-size:20px;">🖨️</span>
+    <a href="GuestInvoice" class="ql">
+      <span class="ql-ico">🖨️</span>
       <div>
-        <div style="font-size:13px;font-weight:600;color:var(--navy);">Print Invoice</div>
-        <div style="font-size:11px;color:var(--text4);">Get your bill</div>
+        <div class="ql-title">Print Invoice</div>
+        <div class="ql-sub">Get your bill</div>
       </div>
     </a>
-    <a href="logout"
-       style="background:var(--white);border:1px solid #fecaca;border-radius:var(--rs);
-              padding:16px 20px;display:flex;align-items:center;gap:12px;
-              transition:all .2s;box-shadow:0 2px 8px var(--shadow);"
-       onmouseover="this.style.background='#fef2f2';this.style.transform='translateY(-2px)'"
-       onmouseout="this.style.background='var(--white)';this.style.transform='none'">
-      <span style="font-size:20px;">↩️</span>
+    <a href="logout" class="ql ql-red">
+      <span class="ql-ico">↩️</span>
       <div>
-        <div style="font-size:13px;font-weight:600;color:var(--red);">Sign Out</div>
-        <div style="font-size:11px;color:var(--text4);">End your session</div>
+        <div class="ql-title">Sign Out</div>
+        <div class="ql-sub">End your session</div>
       </div>
     </a>
   </div>
@@ -448,6 +502,11 @@ function validatePw(){
   if(pw.length<4){alert('New password must be at least 4 characters.');return false;}
   if(pw!==cf){alert('Passwords do not match.');return false;}
   return true;
+}
+function confirmDel(){
+  var v=document.getElementById('delInput').value;
+  if(v!=='DELETE'){alert('Please type DELETE (in capitals) to confirm.');return false;}
+  return confirm('Are you absolutely sure? This action cannot be undone.');
 }
 </script>
 </body>

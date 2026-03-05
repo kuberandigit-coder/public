@@ -67,7 +67,7 @@ public class UserProfileServlet extends HttpServlet {
         request.getRequestDispatcher("userProfile.jsp").forward(request, response);
     }
 
-    // ── POST — change password ────────────────
+    // ── POST — handle actions ─────────────────
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -77,12 +77,26 @@ public class UserProfileServlet extends HttpServlet {
             response.sendRedirect("login.jsp"); return;
         }
 
-        String username    = (String) session.getAttribute("user");
-        String currentPw   = request.getParameter("currentPassword");
-        String newPw       = request.getParameter("newPassword");
-        String confirmPw   = request.getParameter("confirmPassword");
+        String username = (String) session.getAttribute("user");
+        String action   = request.getParameter("action");
 
-        // ── Validation ────────────────────────
+        if ("deleteAccount".equals(action)) {
+            handleDeleteAccount(request, response, username);
+        } else {
+            // Default: change password (original behaviour)
+            handleChangePassword(request, response, username);
+        }
+    }
+
+    // ── Change Password ───────────────────────
+    private void handleChangePassword(HttpServletRequest request,
+            HttpServletResponse response, String username)
+            throws ServletException, IOException {
+
+        String currentPw = request.getParameter("currentPassword");
+        String newPw     = request.getParameter("newPassword");
+        String confirmPw = request.getParameter("confirmPassword");
+
         if (currentPw == null || newPw == null || confirmPw == null ||
             currentPw.isEmpty() || newPw.isEmpty() || confirmPw.isEmpty()) {
             request.setAttribute("pwErr", "All password fields are required.");
@@ -143,5 +157,48 @@ public class UserProfileServlet extends HttpServlet {
         }
 
         doGet(request, response);
+    }
+
+    // ── Delete Account ────────────────────────
+    private void handleDeleteAccount(HttpServletRequest request,
+            HttpServletResponse response, String username)
+            throws ServletException, IOException {
+
+        String confirmDelete = request.getParameter("confirmDelete");
+        if (!"DELETE".equals(confirmDelete)) {
+            request.setAttribute("delErr", "Please type DELETE to confirm.");
+            doGet(request, response); return;
+        }
+
+        Connection conn = null;
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+
+            // Delete reservations first (FK safety)
+            PreparedStatement ps1 = conn.prepareStatement(
+                "DELETE FROM reservations WHERE guest_name = ?");
+            ps1.setString(1, username);
+            ps1.executeUpdate();
+            ps1.close();
+
+            // Delete user
+            PreparedStatement ps2 = conn.prepareStatement(
+                "DELETE FROM users WHERE username = ?");
+            ps2.setString(1, username);
+            ps2.executeUpdate();
+            ps2.close();
+
+            // Invalidate session and redirect
+            request.getSession().invalidate();
+            response.sendRedirect("login.jsp?deleted=1");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            request.setAttribute("delErr", "Database error: " + e.getMessage());
+            doGet(request, response);
+        } finally {
+            if (conn != null) try { conn.close(); } catch (Exception ignored) {}
+        }
     }
 }

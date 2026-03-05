@@ -1,113 +1,110 @@
 package Register;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @WebServlet(name = "ViewReservation", urlPatterns = {"/ViewReservation"})
 public class ViewReservation extends HttpServlet {
 
-    // Database connection details
-    private final String URL = "jdbc:mysql://localhost:3306/mydb"; // Database URL
-    private final String USER = "root"; // Database username
-    private final String PASSWORD = ""; // Database password
+    private final String URL      = "jdbc:mysql://localhost:3306/mydb";
+    private final String USER     = "root";
+    private final String PASSWORD = "";
 
-    /**
-     * Processes requests for both HTTP GET and POST methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
 
-        // Get the reservation number from the request
-        String reservationNumber = request.getParameter("reservationNumber");
+        // Session check
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("user") == null) {
+            response.sendRedirect("login.jsp"); return;
+        }
 
-        if (reservationNumber != null && !reservationNumber.isEmpty()) {
-            Connection con = null;
-            PreparedStatement stmt = null;
-            ResultSet rs = null;
+        String searchType  = request.getParameter("searchType");   // "resNo" or "contact"
+        String searchValue = request.getParameter("searchValue");
 
-            try (PrintWriter out = response.getWriter()) {
-                // Step 1: Establish a database connection
-                Class.forName("com.mysql.cj.jdbc.Driver");
-                con = DriverManager.getConnection(URL, USER, PASSWORD);
-
-                // Step 2: Query the reservation based on the reservation number
-                String query = "SELECT * FROM reservations WHERE reservation_no = ?";
-                stmt = con.prepareStatement(query);
-                stmt.setString(1, reservationNumber);
-                rs = stmt.executeQuery();
-
-                // Step 3: If a reservation is found, set the data to request attributes
-                if (rs.next()) {
-                    // Create a Reservation object to hold the data
-                    Reservation reservation = new Reservation(
-                        rs.getString("reservation_no"),   // Column name for reservation number
-                        rs.getString("guest_name"),       // Column name for guest name
-                        rs.getString("address"),          // Column name for address
-                        rs.getString("contact"),          // Column name for contact number
-                        rs.getString("room_type"),        // Column name for room type
-                        rs.getDate("checkin_date"),       // Column name for check-in date
-                        rs.getDate("checkout_date")       // Column name for check-out date
-                    );
-
-                    // Set the reservation object as a request attribute
-                    request.setAttribute("reservation", reservation);
-                    request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
-                } else {
-                    // If no reservation found, set error message
-                    request.setAttribute("error", "No reservation found for the entered number.");
-                    request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
-                }
-            } catch (Exception e) {
-                // Handle exceptions
-                e.printStackTrace();
-                request.setAttribute("error", "Error fetching reservation details: " + e.getMessage());
-                request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
-            } finally {
-                try {
-                    // Close resources
-                    if (rs != null) rs.close();
-                    if (stmt != null) stmt.close();
-                    if (con != null) con.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        } else {
-            // If reservation number is not provided, set an error
-            request.setAttribute("error", "Please enter a valid reservation number.");
+        // Nothing searched yet — just show the form
+        if (searchValue == null || searchValue.trim().isEmpty()) {
             request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
+            return;
+        }
+
+        searchValue = searchValue.trim();
+
+        Connection con   = null;
+        PreparedStatement stmt = null;
+        ResultSet rs     = null;
+
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            con = DriverManager.getConnection(URL, USER, PASSWORD);
+
+            String query;
+            if ("contact".equals(searchType)) {
+                // Search by contact number — may return multiple reservations
+                query = "SELECT * FROM reservations WHERE contact = ? ORDER BY checkin_date DESC";
+            } else {
+                // Default: search by reservation number — single result
+                query = "SELECT * FROM reservations WHERE reservation_no = ?";
+            }
+
+            stmt = con.prepareStatement(query);
+            stmt.setString(1, searchValue);
+            rs = stmt.executeQuery();
+
+            List<Reservation> results = new ArrayList<>();
+            while (rs.next()) {
+                results.add(new Reservation(
+                    rs.getString("reservation_no"),
+                    rs.getString("guest_name"),
+                    rs.getString("address"),
+                    rs.getString("contact"),
+                    rs.getString("room_type"),
+                    rs.getDate("checkin_date"),
+                    rs.getDate("checkout_date")
+                ));
+            }
+
+            if (results.isEmpty()) {
+                if ("contact".equals(searchType)) {
+                    request.setAttribute("error", "No reservations found for contact number: " + searchValue);
+                } else {
+                    request.setAttribute("error", "No reservation found for number: " + searchValue);
+                }
+            } else {
+                request.setAttribute("results", results);
+            }
+
+            request.setAttribute("searchType",  searchType);
+            request.setAttribute("searchValue", searchValue);
+            request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            request.setAttribute("error", "Database error: " + e.getMessage());
+            request.getRequestDispatcher("viewReservation.jsp").forward(request, response);
+        } finally {
+            try { if (rs   != null) rs.close();   } catch (Exception ignored) {}
+            try { if (stmt != null) stmt.close(); } catch (Exception ignored) {}
+            try { if (con  != null) con.close();  } catch (Exception ignored) {}
         }
     }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
-    }
+            throws ServletException, IOException { processRequest(request, response); }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
-    }
-
-    @Override
-    public String getServletInfo() {
-        return "ViewReservation Servlet";
-    }
+            throws ServletException, IOException { processRequest(request, response); }
 }
