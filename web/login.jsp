@@ -261,13 +261,6 @@
         .eye-toggle svg { width: 18px; height: 18px; }
         #password { padding-right: 44px; }
 
-        .forgot-password { text-align: right; margin-top: 6px; }
-        .forgot-password a {
-            font-size: 11px; color: var(--gold); text-decoration: none;
-            font-weight: 500; letter-spacing: 0.05em; transition: color 0.2s;
-        }
-        .forgot-password a:hover { color: var(--gold-light); }
-
         /* ── SUBMIT ── */
         input[type="submit"] {
             width: 100%; padding: 14px;
@@ -421,9 +414,6 @@
                                              -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                 </svg>
                             </button>
-                        </div>
-                        <div class="forgot-password">
-                            <a href="#forgot">Forgot password?</a>
                         </div>
                     </div>
 
